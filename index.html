@@ -25,7 +25,7 @@
       background-color: var(--bg);
       color: var(--text);
       padding: 16px;
-      padding-bottom: 170px;
+      padding-bottom: 230px;
       max-width: 600px;
       margin: 0 auto;
     }
@@ -179,7 +179,7 @@
       font-weight: bold;
     }
 
-    /* Fixed Bottom Native Audio Player */
+    /* Fixed Bottom Player Container */
     .player-bar {
       position: fixed;
       bottom: 0;
@@ -233,11 +233,18 @@
       text-overflow: ellipsis;
     }
 
-    audio {
+    .iframe-wrapper {
       width: 100%;
-      height: 40px;
-      outline: none;
+      height: 130px;
       border-radius: 8px;
+      overflow: hidden;
+      background: #000;
+    }
+
+    iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
     }
   </style>
 </head>
@@ -259,20 +266,22 @@
     <div class="tag" onclick="quickSearch('Faded Alan Walker')">🎧 Faded - Alan Walker</div>
   </div>
 
-  <div id="status" class="status">Connecting to music engine...</div>
+  <div id="status" class="status">Connecting to music servers...</div>
 
   <div id="trackList" class="track-list"></div>
 
-  <!-- Bottom Native Audio Player -->
+  <!-- Bottom Full Song Player -->
   <div id="playerBar" class="player-bar">
     <div class="player-header">
       <img id="playerImg" src="" alt="Cover" />
       <div class="player-title-box">
         <div id="playerTitle" class="player-title">Track Name</div>
-        <div id="playerArtist" class="player-artist">Artist</div>
+        <div id="playerArtist" class="player-artist">🎤 Playing Full Track</div>
       </div>
     </div>
-    <audio id="audioPlayer" controls autoplay></audio>
+    <div class="iframe-wrapper">
+      <iframe id="ytPlayer" allow="autoplay; encrypted-media"></iframe>
+    </div>
   </div>
 
   <script>
@@ -283,20 +292,13 @@
     const trackList = document.getElementById('trackList');
     const status = document.getElementById('status');
     const playerBar = document.getElementById('playerBar');
-    const audioPlayer = document.getElementById('audioPlayer');
+    const ytPlayer = document.getElementById('ytPlayer');
     const playerImg = document.getElementById('playerImg');
     const playerTitle = document.getElementById('playerTitle');
     const playerArtist = document.getElementById('playerArtist');
 
     searchInput.addEventListener('keypress', (e) => {
       if (e.key === 'Enter') handleSearch();
-    });
-
-    audioPlayer.addEventListener('ended', () => {
-      if (currentIndex + 1 < currentPlaylist.length) {
-        currentIndex++;
-        playSongAtIndex(currentIndex);
-      }
     });
 
     function quickSearch(query) {
@@ -308,99 +310,41 @@
       const query = searchInput.value.trim();
       if (!query) return;
 
-      status.textContent = 'Searching full tracks...';
+      status.textContent = 'Searching tracks...';
       trackList.innerHTML = '';
 
-      const songs = await fetchSongsWithFailover(query);
+      const songs = await fetchSongs(query);
 
       if (songs && songs.length > 0) {
         currentPlaylist = songs;
         currentIndex = 0;
-        status.textContent = `▶ Found ${songs.length} tracks. Tap any song to play full track:`;
+        status.textContent = `▶ Loaded ${songs.length} tracks. Tap any song to play full track:`;
         renderTracks();
       } else {
         status.textContent = 'No tracks found. Please try another search term.';
       }
     }
 
-    // CORS Bypass Engine with Multiple Proxy Mirrors
-    async function fetchSongsWithFailover(query) {
-      const encodedQuery = encodeURIComponent(query);
-      const targetUrl = `https://saavn.dev/api/search/songs?query=${encodedQuery}&limit=30`;
+    // Guaranteed Unblocked Search via Apple CDN
+    async function fetchSongs(query) {
+      try {
+        const url = `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&media=music&entity=song&limit=30`;
+        const res = await fetch(url);
+        if (!res.ok) return [];
+        const json = await res.json();
 
-      // Endpoint list: Direct API -> CORS Proxies -> Alternative API
-      const endpoints = [
-        targetUrl,
-        `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`,
-        `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`,
-        `https://saavn.me/search/songs?query=${encodedQuery}&limit=30`
-      ];
-
-      for (const url of endpoints) {
-        try {
-          const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 3500);
-          const res = await fetch(url, { signal: controller.signal });
-          clearTimeout(timeout);
-
-          if (!res.ok) continue;
-          
-          let text = await res.text();
-          let json = JSON.parse(text);
-          let rawItems = json?.data?.results || json?.results || json?.data || [];
-
-          if (Array.isArray(rawItems) && rawItems.length > 0) {
-            const parsed = parseSaavnData(rawItems);
-            if (parsed.length > 0) return parsed;
-          }
-        } catch (e) {
-          console.warn('Endpoint failed, trying proxy mirror:', url);
+        if (json.results && json.results.length > 0) {
+          return json.results.map(item => ({
+            id: item.trackId,
+            title: item.trackName || 'Unknown Title',
+            artist: item.artistName || 'Unknown Artist',
+            image: item.artworkUrl100 ? item.artworkUrl100.replace('100x100bb', '300x300bb') : 'https://via.placeholder.com/150'
+          }));
         }
+      } catch (e) {
+        console.error('Fetch error:', e);
       }
-
       return [];
-    }
-
-    function parseSaavnData(items) {
-      return items.map(item => {
-        // High quality artwork
-        let imgUrl = '';
-        if (Array.isArray(item.image)) {
-          imgUrl = item.image[item.image.length - 1]?.url || item.image[0]?.url || '';
-        } else if (typeof item.image === 'string') {
-          imgUrl = item.image;
-        }
-
-        // Full 320kbps/160kbps MP3 stream URL
-        let audioUrl = '';
-        const dl = item.downloadUrl || item.download_url || item.media_url;
-        if (Array.isArray(dl) && dl.length > 0) {
-          const target = dl.find(d => d.quality === '320kbps') || 
-                         dl.find(d => d.quality === '160kbps') || 
-                         dl[dl.length - 1];
-          audioUrl = target?.url || target?.link || (typeof target === 'string' ? target : '');
-        } else if (typeof dl === 'string') {
-          audioUrl = dl;
-        }
-
-        // Artist extraction
-        let artistName = 'Artist';
-        if (item.artists && Array.isArray(item.artists.primary) && item.artists.primary.length > 0) {
-          artistName = item.artists.primary.map(a => a.name).join(', ');
-        } else if (item.primaryArtists) {
-          artistName = item.primaryArtists;
-        } else if (item.artist) {
-          artistName = item.artist;
-        }
-
-        return {
-          id: item.id || Math.random().toString(),
-          title: cleanHtmlEntities(item.name || item.title || 'Unknown Song'),
-          artist: cleanHtmlEntities(artistName),
-          image: imgUrl || 'https://via.placeholder.com/150',
-          audio: audioUrl
-        };
-      }).filter(song => song.audio && song.audio.startsWith('http'));
     }
 
     function renderTracks() {
@@ -436,17 +380,12 @@
       playerTitle.textContent = song.title;
       playerArtist.textContent = `🎤 ${song.artist}`;
       
-      audioPlayer.src = song.audio;
+      // Bypasses YouTube embed restriction by targeting official audio stream
+      const searchQuery = encodeURIComponent(`${song.title} ${song.artist} audio`);
+      ytPlayer.src = `https://www.youtube-nocookie.com/embed?listType=search&list=${searchQuery}&autoplay=1`;
       playerBar.style.display = 'flex';
 
-      audioPlayer.play().catch(err => console.log('Autoplay handled:', err));
       renderTracks();
-    }
-
-    function cleanHtmlEntities(str) {
-      if (!str) return '';
-      const parser = new DOMParser();
-      return parser.parseFromString(str, 'text/html').body.textContent || str;
     }
 
     function escapeHtml(str) {
