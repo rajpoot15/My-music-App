@@ -11,69 +11,175 @@
       background: #121212; 
       color: #fff; 
       padding: 16px; 
-      min-height: 100vh; 
-      display: flex; 
-      flex-direction: column; 
-      align-items: center; 
+      padding-bottom: 220px; 
     }
-    h1 { margin-bottom: 16px; font-size: 22px; text-align: center; color: #1db954; }
+    h1 { margin-bottom: 14px; font-size: 22px; text-align: center; color: #1db954; }
     
-    .search-box { display: flex; gap: 8px; width: 100%; max-width: 500px; margin-bottom: 14px; }
-    .search-box input { flex: 1; padding: 12px 16px; border-radius: 25px; border: none; background: #282828; color: #fff; font-size: 14px; outline: none; }
-    .search-box button { padding: 12px 20px; border-radius: 25px; border: none; background: #1db954; color: #000; font-weight: bold; cursor: pointer; }
+    .search-box { display: flex; gap: 8px; margin-bottom: 12px; }
+    .search-box input { flex: 1; padding: 12px 16px; border-radius: 20px; border: none; background: #282828; color: #fff; font-size: 14px; outline: none; }
+    .search-box button { padding: 12px 20px; border-radius: 20px; border: none; background: #1db954; color: #000; font-weight: bold; cursor: pointer; }
 
-    .quick-tags { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; width: 100%; max-width: 500px; margin-bottom: 20px; }
-    .tag { background: #282828; color: #aaa; padding: 6px 14px; border-radius: 15px; font-size: 12px; cursor: pointer; border: 1px solid #333; }
+    .quick-tags { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 8px; margin-bottom: 14px; scrollbar-width: none; }
+    .quick-tags::-webkit-scrollbar { display: none; }
+    .tag { background: #282828; color: #ccc; padding: 6px 14px; border-radius: 16px; font-size: 12px; white-space: nowrap; cursor: pointer; border: 1px solid #333; flex-shrink: 0; }
     .tag:active { background: #1db954; color: #000; }
 
-    .player-container { width: 100%; max-width: 500px; background: #1e1e1e; border-radius: 12px; padding: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.6); border: 1px solid #282828; }
-    .now-playing { font-size: 13px; text-align: center; color: #1db954; font-weight: 600; margin-bottom: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .iframe-wrapper { position: relative; width: 100%; padding-top: 56.25%; border-radius: 8px; overflow: hidden; background: #000; }
-    .iframe-wrapper iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none; }
+    .track-list { display: flex; flex-direction: column; gap: 10px; }
+    .track-card { display: flex; align-items: center; gap: 12px; background: #1e1e1e; padding: 10px; border-radius: 8px; cursor: pointer; border: 1px solid #282828; }
+    .track-card:active { background: #282828; border-color: #1db954; }
+    .track-card img { width: 64px; height: 48px; border-radius: 6px; object-fit: cover; background: #333; }
+    .track-info { flex: 1; min-width: 0; }
+    .track-title { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #fff; }
+    .track-artist { font-size: 12px; color: #aaa; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .player-bar { position: fixed; bottom: 0; left: 0; right: 0; background: #181818; border-top: 1px solid #282828; padding: 12px; display: flex; flex-direction: column; align-items: center; gap: 8px; box-shadow: 0 -6px 20px rgba(0,0,0,0.7); z-index: 100; }
+    .now-playing { font-size: 13px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #1db954; font-weight: 600; width: 100%; max-width: 500px; }
+    .iframe-container { width: 100%; max-width: 500px; height: 150px; border-radius: 10px; overflow: hidden; background: #000; border: 1px solid #333; }
+    iframe { width: 100%; height: 100%; border: none; }
+    
+    .status-msg { text-align: center; color: #aaa; font-size: 14px; margin-top: 20px; }
   </style>
 </head>
 <body>
   <h1>🎵 My Music Player</h1>
 
   <div class="search-box">
-    <input type="text" id="searchInput" placeholder="Enter song name or artist...">
-    <button onclick="playSong()">Play</button>
+    <input type="text" id="searchInput" placeholder="Search song or artist name...">
+    <button onclick="searchMusic()">Search</button>
   </div>
 
   <div class="quick-tags">
-    <span class="tag" onclick="quickPlay('Supreme Shubh')">Supreme - Shubh</span>
-    <span class="tag" onclick="quickPlay('Karan Aujla hits')">Karan Aujla</span>
-    <span class="tag" onclick="quickPlay('Sidhu Moose Wala')">Sidhu Moose Wala</span>
+    <span class="tag" onclick="quickSearch('Supreme Shubh')">🔥 Supreme - Shubh</span>
+    <span class="tag" onclick="quickSearch('Karan Aujla')">🎤 Karan Aujla</span>
+    <span class="tag" onclick="quickSearch('Sidhu Moose Wala')">👑 Sidhu Moose Wala</span>
+    <span class="tag" onclick="quickSearch('Starboy')">✨ Starboy</span>
   </div>
 
-  <div class="player-container">
-    <div id="nowPlaying" class="now-playing">Playing: Supreme - Shubh</div>
-    <div class="iframe-wrapper">
-      <iframe id="ytPlayer" src="https://www.youtube-nocookie.com/embed?listType=search&list=Supreme+Shubh" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+  <div id="tracks" class="track-list">
+    <div class="status-msg">Type a song name above or tap a tag to search!</div>
+  </div>
+
+  <div class="player-bar">
+    <div id="nowPlaying" class="now-playing">Tap any track below to play full song</div>
+    <div class="iframe-container">
+      <iframe id="ytPlayer" src="" allow="autoplay; encrypted-media" allowfullscreen></iframe>
     </div>
   </div>
 
   <script>
-    const searchInput = document.getElementById('searchInput');
+    // Multi-instance failover list (Piped & Invidious APIs)
+    const SEARCH_APIS = [
+      { url: 'https://pipedapi.kavin.rocks/search?q=', type: 'piped' },
+      { url: 'https://api.piped.privacydev.net/search?q=', type: 'piped' },
+      { url: 'https://inv.nadeko.net/api/v1/search?q=', type: 'invidious' },
+      { url: 'https://yewtu.be/api/v1/search?q=', type: 'invidious' }
+    ];
+
+    const tracksContainer = document.getElementById('tracks');
     const ytPlayer = document.getElementById('ytPlayer');
     const nowPlaying = document.getElementById('nowPlaying');
+    const searchInput = document.getElementById('searchInput');
 
-    function playSong() {
-      const query = searchInput.value.trim();
-      if (!query) return;
-      
-      nowPlaying.textContent = `Playing: ${query}`;
-      ytPlayer.src = `https://www.youtube-nocookie.com/embed?listType=search&list=${encodeURIComponent(query)}&autoplay=1`;
+    async function searchMusic(query = null) {
+      const searchTerm = query || searchInput.value.trim();
+      if (!searchTerm) {
+        tracksContainer.innerHTML = '<div class="status-msg">Please enter a search term!</div>';
+        return;
+      }
+
+      tracksContainer.innerHTML = '<div class="status-msg">🔍 Searching tracks...</div>';
+
+      let items = [];
+
+      for (const api of SEARCH_APIS) {
+        try {
+          const res = await fetch(`${api.url}${encodeURIComponent(searchTerm)}`);
+          if (res.ok) {
+            const data = await res.json();
+            
+            if (api.type === 'piped' && data.items && data.items.length > 0) {
+              items = data.items
+                .filter(i => i.type === 'stream')
+                .map(i => ({
+                  id: i.url ? i.url.replace('/watch?v=', '') : '',
+                  title: i.title,
+                  artist: i.uploaderName || 'Artist',
+                  thumbnail: i.thumbnail
+                }));
+            } else if (api.type === 'invidious' && Array.isArray(data) && data.length > 0) {
+              items = data
+                .filter(i => i.videoId)
+                .map(i => ({
+                  id: i.videoId,
+                  title: i.title,
+                  artist: i.author || 'Artist',
+                  thumbnail: i.videoThumbnails && i.videoThumbnails[0] ? i.videoThumbnails[0].url : ''
+                }));
+            }
+
+            if (items.length > 0) break; // Stop loop once results are retrieved
+          }
+        } catch (e) {
+          // Fall back to next public API instance if blocked
+        }
+      }
+
+      if (items.length === 0) {
+        tracksContainer.innerHTML = `
+          <div class="status-msg">
+            <p>No tracks found from network servers.</p>
+            <p style="font-size: 12px; color: #777; margin-top: 6px;">Try simplifying your search phrase.</p>
+          </div>
+        `;
+        return;
+      }
+
+      renderTracks(items);
     }
 
-    function quickPlay(songName) {
-      searchInput.value = songName;
-      playSong();
+    function renderTracks(items) {
+      tracksContainer.innerHTML = '';
+      
+      items.forEach((track) => {
+        if (!track.id) return;
+
+        const card = document.createElement('div');
+        card.className = 'track-card';
+        const thumbUrl = track.thumbnail || 'https://via.placeholder.com/64x48?text=Music';
+
+        card.innerHTML = `
+          <img src="${thumbUrl}" alt="Cover">
+          <div class="track-info">
+            <div class="track-title">${track.title}</div>
+            <div class="track-artist">👤 ${track.artist}</div>
+          </div>
+        `;
+
+        card.onclick = () => {
+          playTrack(track.id, track.title);
+        };
+
+        tracksContainer.appendChild(card);
+      });
+    }
+
+    function playTrack(videoId, title) {
+      nowPlaying.textContent = `▶ ${title}`;
+      // Direct YouTube Video Embed URL (Bypasses listType restrictions)
+      ytPlayer.src = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&enablejsapi=1`;
+    }
+
+    function quickSearch(tagQuery) {
+      searchInput.value = tagQuery;
+      searchMusic(tagQuery);
     }
 
     searchInput.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') playSong();
+      if (e.key === 'Enter') searchMusic();
     });
+
+    // Default search when page opens
+    searchMusic('Supreme Shubh');
   </script>
 </body>
 </html>
