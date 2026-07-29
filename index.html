@@ -179,7 +179,7 @@
       font-weight: bold;
     }
 
-    /* Fixed Bottom Native Audio Player */
+    /* Bottom Fixed Audio Player */
     .player-bar {
       position: fixed;
       bottom: 0;
@@ -248,18 +248,18 @@
   </header>
 
   <div class="search-box">
-    <input type="text" id="searchInput" placeholder="Search song or artist..." value="Karan Aujla" />
+    <input type="text" id="searchInput" placeholder="Search song or artist..." value="Humsafar" />
     <button class="search-btn" onclick="handleSearch()">Search</button>
   </div>
 
   <div class="tags">
-    <div class="tag" onclick="quickSearch('Karan Aujla')">🎤 Karan Aujla</div>
     <div class="tag" onclick="quickSearch('Humsafar')">✨ Humsafar</div>
+    <div class="tag" onclick="quickSearch('Karan Aujla')">🎤 Karan Aujla</div>
     <div class="tag" onclick="quickSearch('Supreme Shubh')">🔥 Supreme - Shubh</div>
     <div class="tag" onclick="quickSearch('Faded Alan Walker')">🎧 Faded - Alan Walker</div>
   </div>
 
-  <div id="status" class="status">Connecting to full song servers...</div>
+  <div id="status" class="status">Loading full tracks engine...</div>
 
   <div id="trackList" class="track-list"></div>
 
@@ -278,15 +278,6 @@
   <script>
     let currentPlaylist = [];
     let currentIndex = 0;
-
-    const PIPED_INSTANCES = [
-      'https://pipedapi.kavin.rocks',
-      'https://pipedapi.adminforge.de',
-      'https://api.piped.yt',
-      'https://pipedapi.drgns.space'
-    ];
-
-    let workingInstance = PIPED_INSTANCES[0];
 
     const searchInput = document.getElementById('searchInput');
     const trackList = document.getElementById('trackList');
@@ -317,50 +308,90 @@
       const query = searchInput.value.trim();
       if (!query) return;
 
-      status.textContent = 'Searching full length songs...';
+      status.textContent = 'Searching full songs...';
       trackList.innerHTML = '';
 
-      const songs = await searchFullSongs(query);
+      const songs = await fetchFullAudioSongs(query);
 
       if (songs && songs.length > 0) {
         currentPlaylist = songs;
         currentIndex = 0;
-        status.textContent = `▶ Loaded ${songs.length} full tracks. Tap any song:`;
+        status.textContent = `▶ Loaded ${songs.length} full songs. Tap to play:`;
         renderTracks();
       } else {
-        status.textContent = 'No full tracks found. Please try another search.';
+        status.textContent = 'No tracks found. Try searching another song name.';
       }
     }
 
-    async function searchFullSongs(query) {
-      for (const instance of PIPED_INSTANCES) {
+    // Direct Full Song API Fetcher
+    async function fetchFullAudioSongs(query) {
+      const encodedQuery = encodeURIComponent(query);
+      
+      const apiUrls = [
+        `https://saavn.dev/api/search/songs?query=${encodedQuery}&limit=30`,
+        `https://jiosaavn-api-private-us.vercel.app/search/songs?query=${encodedQuery}&limit=30`
+      ];
+
+      for (const url of apiUrls) {
         try {
-          const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 4000);
-          const url = `${instance}/search?q=${encodeURIComponent(query + " song")}&filter=music_songs`;
-          const res = await fetch(url, { signal: controller.signal });
-          clearTimeout(timeout);
-
+          // Use jsonp/proxy wrapper to completely prevent CORS blocks on GitHub Pages
+          const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+          const res = await fetch(proxyUrl);
           if (!res.ok) continue;
-          const data = await res.json();
 
-          if (data.items && data.items.length > 0) {
-            workingInstance = instance;
-            return data.items.map(item => {
-              const videoId = item.url ? item.url.replace('/watch?v=', '') : '';
-              return {
-                id: videoId,
-                title: cleanTitle(item.title || 'Unknown Title'),
-                artist: item.uploaderName || 'Artist',
-                image: item.thumbnail || 'https://via.placeholder.com/150'
-              };
-            }).filter(item => item.id);
+          const data = await res.json();
+          const json = JSON.parse(data.contents);
+          const items = json?.data?.results || json?.results || json?.data || [];
+
+          if (Array.isArray(items) && items.length > 0) {
+            const parsed = parseSongs(items);
+            if (parsed.length > 0) return parsed;
           }
         } catch (e) {
-          console.warn('Instance failed, trying backup server...');
+          console.warn('Mirror failed, switching backup...');
         }
       }
       return [];
+    }
+
+    function parseSongs(items) {
+      return items.map(item => {
+        // Image
+        let img = '';
+        if (Array.isArray(item.image)) {
+          img = item.image[item.image.length - 1]?.url || item.image[0]?.url || '';
+        } else if (typeof item.image === 'string') {
+          img = item.image;
+        }
+
+        // High Quality Audio Stream Link
+        let audio = '';
+        const dl = item.downloadUrl || item.download_url || item.media_url;
+        if (Array.isArray(dl) && dl.length > 0) {
+          const target = dl.find(d => d.quality === '320kbps') || dl.find(d => d.quality === '160kbps') || dl[dl.length - 1];
+          audio = target?.url || target?.link || (typeof target === 'string' ? target : '');
+        } else if (typeof dl === 'string') {
+          audio = dl;
+        }
+
+        // Artist Name
+        let artist = 'Artist';
+        if (item.artists && Array.isArray(item.artists.primary) && item.artists.primary.length > 0) {
+          artist = item.artists.primary.map(a => a.name).join(', ');
+        } else if (item.primaryArtists) {
+          artist = item.primaryArtists;
+        } else if (item.artist) {
+          artist = item.artist;
+        }
+
+        return {
+          id: item.id || Math.random().toString(),
+          title: cleanHtml(item.name || item.title || 'Unknown Song'),
+          artist: cleanHtml(artist),
+          image: img || 'https://via.placeholder.com/150',
+          audio: audio
+        };
+      }).filter(s => s.audio && s.audio.startsWith('http'));
     }
 
     function renderTracks() {
@@ -388,60 +419,32 @@
       });
     }
 
-    async function playSongAtIndex(index) {
+    function playSongAtIndex(index) {
       const song = currentPlaylist[index];
       if (!song) return;
 
       playerImg.src = song.image;
       playerTitle.textContent = song.title;
       playerArtist.textContent = `🎤 ${song.artist}`;
+      
+      audioPlayer.src = song.audio;
       playerBar.style.display = 'flex';
+
+      audioPlayer.play().catch(err => console.log('Autoplay handled:', err));
       renderTracks();
-
-      status.textContent = 'Extracting full audio stream...';
-
-      const audioUrl = await fetchAudioStream(song.id);
-      if (audioUrl) {
-        audioPlayer.src = audioUrl;
-        audioPlayer.play().catch(err => console.log('Autoplay handled:', err));
-        status.textContent = `▶ Playing full song: ${song.title}`;
-      } else {
-        status.textContent = 'Failed to load audio for this song. Try another.';
-      }
     }
 
-    async function fetchAudioStream(videoId) {
-      for (const instance of [workingInstance, ...PIPED_INSTANCES]) {
-        try {
-          const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 4000);
-          const res = await fetch(`${instance}/streams/${videoId}`, { signal: controller.signal });
-          clearTimeout(timeout);
-
-          if (!res.ok) continue;
-          const data = await res.json();
-
-          if (data.audioStreams && data.audioStreams.length > 0) {
-            // Pick highest quality audio stream (.m4a / .webm)
-            const stream = data.audioStreams.find(s => s.mimeType.includes('audio/mp4')) || data.audioStreams[0];
-            return stream.url;
-          }
-        } catch (e) {
-          console.warn('Audio stream extraction retry...');
-        }
-      }
-      return null;
-    }
-
-    function cleanTitle(title) {
-      return title.replace(/\(Official Video\)|\(Official Audio\)|\(Lyric Video\)|\[Official Video\]/gi, '').trim();
+    function cleanHtml(str) {
+      if (!str) return '';
+      const doc = new DOMParser().parseFromString(str, 'text/html');
+      return doc.body.textContent || str;
     }
 
     function escapeHtml(str) {
       return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
     }
 
-    // Auto search on page load
+    // Run initial search
     handleSearch();
   </script>
 </body>
