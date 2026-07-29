@@ -1,548 +1,158 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>My Music Player</title>
   <style>
-    :root {
-      --bg: #121212;
-      --card: #1e1e1e;
-      --card-active: #282828;
-      --primary: #1db954;
-      --text: #ffffff;
-      --subtext: #b3b3b3;
-    }
-
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    }
-
     body {
-      background-color: var(--bg);
-      color: var(--text);
-      padding: 16px;
-      padding-bottom: 130px;
-      max-width: 600px;
-      margin: 0 auto;
-    }
-
-    header {
-      text-align: center;
-      margin-bottom: 18px;
-    }
-
-    h1 {
-      color: var(--primary);
-      font-size: 1.8rem;
+      background-color: #121212;
+      color: #ffffff;
+      font-family: Arial, sans-serif;
       display: flex;
+      flex-direction: column;
       align-items: center;
-      justify-content: center;
-      gap: 8px;
+      padding: 20px;
+      margin: 0;
     }
 
-    .search-box {
+    .title {
+      color: #10b981;
+      font-size: 24px;
+      font-weight: bold;
+      margin-bottom: 20px;
+    }
+
+    /* Search Bar Layout */
+    .search-container {
       display: flex;
       gap: 10px;
-      margin-bottom: 14px;
+      width: 100%;
+      max-width: 450px;
+      margin-bottom: 15px;
     }
 
-    input[type="text"] {
+    .search-input {
       flex: 1;
-      padding: 12px 16px;
+      padding: 12px 18px;
       border-radius: 25px;
       border: 1px solid #333;
-      background: var(--card);
-      color: var(--text);
-      font-size: 1rem;
+      background-color: #1e1e1e;
+      color: #fff;
+      font-size: 16px;
       outline: none;
     }
 
-    input[type="text"]:focus {
-      border-color: var(--primary);
-    }
-
-    button.search-btn {
-      padding: 12px 20px;
+    .search-btn {
+      padding: 12px 24px;
       border-radius: 25px;
       border: none;
-      background: var(--primary);
+      background-color: #10b981;
       color: #000;
       font-weight: bold;
-      font-size: 1rem;
+      font-size: 16px;
       cursor: pointer;
     }
 
-    .tags {
+    /* Top Singer Tags */
+    .singer-tags {
       display: flex;
-      gap: 8px;
+      gap: 10px;
       overflow-x: auto;
-      padding-bottom: 8px;
-      margin-bottom: 16px;
-      scrollbar-width: none;
-    }
-
-    .tags::-webkit-scrollbar {
-      display: none;
-    }
-
-    .tag {
-      background: var(--card);
-      border: 1px solid #333;
-      color: var(--subtext);
-      padding: 8px 14px;
-      border-radius: 20px;
-      white-space: nowrap;
-      font-size: 0.85rem;
-      cursor: pointer;
-    }
-
-    .tag:hover {
-      border-color: var(--primary);
-      color: var(--text);
-    }
-
-    .status {
-      text-align: center;
-      color: var(--subtext);
-      margin: 15px 0 20px;
-      font-size: 0.9rem;
-    }
-
-    .track-list {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-
-    .track-card {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      background: var(--card);
-      padding: 10px 14px;
-      border-radius: 12px;
-      cursor: pointer;
-      border: 1px solid transparent;
-      transition: all 0.2s ease;
-    }
-
-    .track-card:hover {
-      background: var(--card-active);
-    }
-
-    /* Highlight currently playing song */
-    .track-card.active {
-      background: #18281e;
-      border-color: var(--primary);
-    }
-
-    .track-card.active .track-title {
-      color: var(--primary);
-    }
-
-    .track-img {
-      width: 52px;
-      height: 52px;
-      border-radius: 8px;
-      object-fit: cover;
-      background: #333;
-    }
-
-    .track-info {
-      flex: 1;
-      overflow: hidden;
-    }
-
-    .track-title {
-      font-size: 0.95rem;
-      font-weight: 600;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .track-artist {
-      font-size: 0.82rem;
-      color: var(--subtext);
-      margin-top: 4px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .play-badge {
-      font-size: 0.8rem;
-      color: var(--primary);
-      font-weight: bold;
-    }
-
-    /* Sticky Bottom Player */
-    .player-bar {
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      background: #181818;
-      border-top: 1px solid #282828;
-      padding: 12px 16px;
-      display: none;
-      flex-direction: column;
-      gap: 10px;
-      box-shadow: 0 -6px 20px rgba(0,0,0,0.7);
-      z-index: 100;
-    }
-
-    .player-header {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-
-    .player-header img {
-      width: 46px;
-      height: 46px;
-      border-radius: 6px;
-      object-fit: cover;
-    }
-
-    .player-title-box {
-      flex: 1;
-      overflow: hidden;
-    }
-
-    .player-title {
-      font-size: 0.9rem;
-      font-weight: 600;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      color: var(--text);
-    }
-
-    .player-artist {
-      font-size: 0.78rem;
-      color: var(--primary);
-      margin-top: 2px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    audio {
       width: 100%;
-      height: 36px;
-      outline: none;
+      max-width: 450px;
+      padding-bottom: 10px;
+    }
+
+    .singer-chip {
+      background-color: #242424;
+      color: #e5e7eb;
+      border: 1px solid #374151;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 14px;
+      white-space: nowrap;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .singer-chip:hover {
+      background-color: #333333;
+    }
+
+    .status-msg {
+      margin-top: 30px;
+      color: #9ca3af;
+      font-size: 14px;
     }
   </style>
 </head>
 <body>
 
-  <header>
-    <h1>🎵 My Music Player</h1>
-  </header>
+  <div class="title">🎵 My Music Player</div>
 
-  <div class="search-box">
-    <input type="text" id="searchInput" placeholder="Search song or artist..." value="Faded Alan Walker" />
-    <button class="search-btn" onclick="handleSearch()">Search</button>
+  <!-- Search Input and Button -->
+  <div class="search-container">
+    <input type="text" id="searchInput" class="search-input" placeholder="Search singer or song...">
+    <button id="searchBtn" class="search-btn">Search</button>
   </div>
 
-  <div class="tags">
-    <div class="tag" onclick="quickSearch('Faded Alan Walker')">🎧 Faded - Alan Walker</div>
-    <div class="tag" onclick="quickSearch('Supreme Shubh')">🔥 Supreme - Shubh</div>
-    <div class="tag" onclick="quickSearch('Karan Aujla')">🎤 Karan Aujla</div>
-    <div class="tag" onclick="quickSearch('Sidhu Moosewala')">👑 Sidhu Moosewala</div>
+  <!-- Top Singer Chips -->
+  <div class="singer-tags">
+    <button class="singer-chip" data-artist="Shubh">🔥 Shubh</button>
+    <button class="singer-chip" data-artist="Alan Walker">🎧 Alan Walker</button>
+    <button class="singer-chip" data-artist="Arijit Singh">🎤 Arijit Singh</button>
+    <button class="singer-chip" data-artist="Karan Aujla">👑 Karan Aujla</button>
   </div>
 
-  <div id="status" class="status">Tap search or select a tag to start your playlist.</div>
-
-  <div id="trackList" class="track-list"></div>
-
-  <!-- Bottom Player -->
-  <div id="playerBar" class="player-bar">
-    <div class="player-header">
-      <img id="playerImg" src="" alt="Cover" />
-      <div class="player-title-box">
-        <div id="playerTitle" class="player-title">Track Name</div>
-        <div id="playerArtist" class="player-artist">Artist</div>
-      </div>
-    </div>
-    <audio id="audioPlayer" controls></audio>
-  </div>
+  <!-- Search Status / Results Area -->
+  <div id="statusMsg" class="status-msg">Searching network servers...</div>
 
   <script>
-    // State management
-    let currentPlaylist = [];
-    let currentIndex = 0;
-    let isFetchingRecommendations = false;
+    // DOM Elements
+    const searchInput = document.getElementById("searchInput");
+    const searchBtn = document.getElementById("searchBtn");
+    const statusMsg = document.getElementById("statusMsg");
+    const singerChips = document.querySelectorAll(".singer-chip");
 
-    const searchInput = document.getElementById('searchInput');
-    const trackList = document.getElementById('trackList');
-    const status = document.getElementById('status');
-    const playerBar = document.getElementById('playerBar');
-    const audioPlayer = document.getElementById('audioPlayer');
-    const playerImg = document.getElementById('playerImg');
-    const playerTitle = document.getElementById('playerTitle');
-    const playerArtist = document.getElementById('playerArtist');
-
-    // Handle Enter keypress
-    searchInput.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') handleSearch();
-    });
-
-    // AUTO-PLAY NEXT TRACK WHEN CURRENT SONG ENDS
-    audioPlayer.addEventListener('ended', async () => {
-      if (currentIndex + 1 < currentPlaylist.length) {
-        currentIndex++;
-        playSongAtIndex(currentIndex);
-      } else {
-        status.textContent = '✨ Generating similar songs for autoplay...';
-        await loadSimilarSongs(currentPlaylist[currentIndex]);
-        
-        if (currentIndex + 1 < currentPlaylist.length) {
-          currentIndex++;
-          playSongAtIndex(currentIndex);
-        } else {
-          status.textContent = 'Playlist completed.';
-        }
-      }
-    });
-
-    function quickSearch(query) {
-      searchInput.value = query;
-      handleSearch();
-    }
-
-    async function handleSearch() {
-      const query = searchInput.value.trim();
-      if (!query) return;
-
-      status.textContent = 'Searching network servers...';
-      trackList.innerHTML = '';
-
-      const songs = await fetchSongs(query);
-
-      if (songs && songs.length > 0) {
-        currentPlaylist = songs;
-        currentIndex = 0;
-        status.textContent = `▶ Loaded ${songs.length} tracks. Tap any track to play:`;
-        renderTracks();
-      } else {
-        status.textContent = 'No tracks found. Try another search.';
-      }
-    }
-
-    // Multi-Server API Fetcher
-    async function fetchSongs(query) {
-      const endpoints = [
-        `https://saavn.dev/api/search/songs?query=${encodeURIComponent(query)}`,
-        `https://saavn.sumit.co/api/search/songs?query=${encodeURIComponent(query)}`
-      ];
-
-      for (const url of endpoints) {
-        try {
-          const res = await fetch(url);
-          if (!res.ok) continue;
-          const json = await res.json();
-          const items = json?.data?.results || json?.results || [];
-
-          if (items.length > 0) {
-            return formatSongsData(items);
-          }
-        } catch (e) {
-          console.warn('API Endpoint failed, trying next...', e);
-        }
-      }
-
-      // iTunes Fallback
-      try {
-        const itunesRes = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(query)}&media=music&limit=15`);
-        if (itunesRes.ok) {
-          const itunesData = await itunesRes.json();
-          if (itunesData.results && itunesData.results.length > 0) {
-            return itunesData.results.map(item => ({
-              id: item.trackId,
-              title: cleanText(item.trackName),
-              artist: cleanText(item.artistName || 'Unknown Artist'),
-              image: item.artworkUrl100?.replace('100x100bb', '300x300bb') || '',
-              audio: item.previewUrl
-            }));
-          }
-        }
-      } catch (e) {}
-
-      return [];
-    }
-
-    // SPOTIFY-LIKE "MILTE JULTE SONG" RECOMMENDATION GENERATOR
-    async function loadSimilarSongs(currentSong) {
-      if (isFetchingRecommendations || !currentSong) return;
-      isFetchingRecommendations = true;
-
-      try {
-        if (currentSong.id) {
-          const recUrl = `https://saavn.dev/api/songs/${currentSong.id}/suggestions?limit=10`;
-          const res = await fetch(recUrl);
-          if (res.ok) {
-            const json = await res.json();
-            const recs = json?.data || [];
-            if (recs.length > 0) {
-              appendNewUniqueSongs(formatSongsData(recs));
-              isFetchingRecommendations = false;
-              return;
-            }
-          }
-        }
-
-        // Fallback: Fetch tracks by primary artist name
-        const primaryArtist = currentSong.artist.split(/[,&]/)[0].trim();
-        if (primaryArtist && primaryArtist !== 'Unknown Artist') {
-          const artistSongs = await fetchSongs(primaryArtist);
-          if (artistSongs.length > 0) {
-            appendNewUniqueSongs(artistSongs);
-          }
-        }
-      } catch (e) {
-        console.warn('Failed to load similar songs:', e);
-      }
+    // Search Logic
+    function searchSongs(query) {
+      if (!query.trim()) return;
       
-      isFetchingRecommendations = false;
+      // Updates status text
+      statusMsg.textContent = `Searching all songs for "${query}"...`;
+      
+      // Place your actual API / fetch call here:
+      /*
+      fetch(`YOUR_API_ENDPOINT?artist=${encodeURIComponent(query)}`)
+        .then(res => res.json())
+        .then(data => {
+           // Display songs list
+        });
+      */
     }
 
-    // Comprehensive Artist Name Extractor
-    function extractArtistName(item) {
-      // 1. Array of primary artist objects
-      if (item.artists && Array.isArray(item.artists.primary) && item.artists.primary.length > 0) {
-        return item.artists.primary.map(a => a.name).join(', ');
-      }
-      if (item.artists && Array.isArray(item.artists.all) && item.artists.all.length > 0) {
-        return item.artists.all.map(a => a.name).join(', ');
-      }
-
-      // 2. Direct string fields
-      if (typeof item.primaryArtists === 'string' && item.primaryArtists.trim() !== '') {
-        return item.primaryArtists;
-      }
-      if (typeof item.artist === 'string' && item.artist.trim() !== '') {
-        return item.artist;
-      }
-      if (typeof item.artistName === 'string' && item.artistName.trim() !== '') {
-        return item.artistName;
-      }
-
-      // 3. Array under primaryArtists or artists
-      if (Array.isArray(item.primaryArtists) && item.primaryArtists.length > 0) {
-        return item.primaryArtists.map(a => typeof a === 'string' ? a : a.name).join(', ');
-      }
-
-      // 4. Fallback: subtitle or singers field
-      if (item.subtitle && typeof item.subtitle === 'string' && item.subtitle.trim() !== '') {
-        return item.subtitle;
-      }
-      if (item.more_info && item.more_info.singers) {
-        return item.more_info.singers;
-      }
-
-      return 'Unknown Artist';
-    }
-
-    function formatSongsData(items) {
-      return items.map(item => {
-        let img = '';
-        if (Array.isArray(item.image)) {
-          img = item.image[item.image.length - 1]?.url || item.image[0]?.url || '';
-        } else if (typeof item.image === 'string') {
-          img = item.image;
-        }
-
-        let audio = '';
-        if (Array.isArray(item.downloadUrl)) {
-          audio = item.downloadUrl[item.downloadUrl.length - 1]?.url || item.downloadUrl[0]?.url || '';
-        } else if (typeof item.url === 'string') {
-          audio = item.url;
-        }
-
-        const rawTitle = item.name || item.title || 'Unknown Title';
-        const rawArtist = extractArtistName(item);
-
-        return {
-          id: item.id || '',
-          title: cleanText(rawTitle),
-          artist: cleanText(rawArtist),
-          image: img || 'https://via.placeholder.com/150',
-          audio: audio
-        };
-      }).filter(s => s.audio);
-    }
-
-    function appendNewUniqueSongs(newSongs) {
-      const existingTitles = new Set(currentPlaylist.map(s => s.title.toLowerCase()));
-      const uniqueNewSongs = newSongs.filter(s => !existingTitles.has(s.title.toLowerCase()));
-
-      if (uniqueNewSongs.length > 0) {
-        currentPlaylist = [...currentPlaylist, ...uniqueNewSongs];
-        renderTracks();
-        status.textContent = `✨ Added ${uniqueNewSongs.length} similar songs to your queue!`;
-      }
-    }
-
-    function renderTracks() {
-      trackList.innerHTML = '';
-      currentPlaylist.forEach((song, index) => {
-        const card = document.createElement('div');
-        const isActive = index === currentIndex;
-        card.className = `track-card ${isActive ? 'active' : ''}`;
-        
-        card.innerHTML = `
-          <img class="track-img" src="${song.image}" alt="${song.title}" />
-          <div class="track-info">
-            <div class="track-title">${escapeHtml(song.title)}</div>
-            <div class="track-artist">👤 ${escapeHtml(song.artist)}</div>
-          </div>
-          <div class="play-badge">${isActive ? '🔊 PLAYING' : '▶'}</div>
-        `;
-
-        card.onclick = () => {
-          currentIndex = index;
-          playSongAtIndex(currentIndex);
-          loadSimilarSongs(song);
-        };
-
-        trackList.appendChild(card);
+    // Handle Singer Tag Clicks
+    singerChips.forEach(chip => {
+      chip.addEventListener("click", () => {
+        const artistName = chip.getAttribute("data-artist");
+        searchInput.value = artistName; // Auto-fill search box
+        searchSongs(artistName);        // Trigger search
       });
-    }
+    });
 
-    function playSongAtIndex(index) {
-      const song = currentPlaylist[index];
-      if (!song) return;
+    // Handle Search Button Click
+    searchBtn.addEventListener("click", () => {
+      searchSongs(searchInput.value);
+    });
 
-      playerImg.src = song.image;
-      playerTitle.textContent = song.title;
-      playerArtist.textContent = `🎤 ${song.artist}`;
-      audioPlayer.src = song.audio;
-      playerBar.style.display = 'flex';
-
-      audioPlayer.play().catch(e => console.log('Autoplay policy error:', e));
-      renderTracks();
-    }
-
-    // Helper to decode HTML entities like &quot; or &amp;
-    function cleanText(str) {
-      if (!str) return '';
-      const txt = document.createElement('textarea');
-      txt.innerHTML = str;
-      return txt.value;
-    }
-
-    function escapeHtml(str) {
-      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-    }
-
-    // Initial search load
-    handleSearch();
+    // Handle Enter Key Press in Search Bar
+    searchInput.addEventListener("keypress", (e) => {
+      if (e.key === "Enter") {
+        searchSongs(searchInput.value);
+      }
+    });
   </script>
+
 </body>
 </html>
