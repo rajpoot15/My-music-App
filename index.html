@@ -6,112 +6,74 @@
   <title>My Mobile Music Player</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #121212; color: #fff; padding: 16px; padding-bottom: 250px; }
-    h1 { margin-bottom: 12px; font-size: 22px; text-align: center; color: #1db954; }
+    body { 
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+      background: #121212; 
+      color: #fff; 
+      padding: 16px; 
+      min-height: 100vh; 
+      display: flex; 
+      flex-direction: column; 
+      align-items: center; 
+    }
+    h1 { margin-bottom: 16px; font-size: 22px; text-align: center; color: #1db954; }
     
-    .search-box { display: flex; gap: 8px; margin-bottom: 16px; }
-    .search-box input { flex: 1; padding: 10px 14px; border-radius: 20px; border: none; background: #282828; color: #fff; font-size: 14px; outline: none; }
-    .search-box button { padding: 10px 18px; border-radius: 20px; border: none; background: #1db954; color: #000; font-weight: bold; cursor: pointer; }
+    .search-box { display: flex; gap: 8px; width: 100%; max-width: 500px; margin-bottom: 14px; }
+    .search-box input { flex: 1; padding: 12px 16px; border-radius: 25px; border: none; background: #282828; color: #fff; font-size: 14px; outline: none; }
+    .search-box button { padding: 12px 20px; border-radius: 25px; border: none; background: #1db954; color: #000; font-weight: bold; cursor: pointer; }
 
-    .track-list { display: flex; flex-direction: column; gap: 10px; }
-    .track-card { display: flex; align-items: center; gap: 12px; background: #1e1e1e; padding: 10px; border-radius: 8px; cursor: pointer; }
-    .track-card:active { background: #282828; }
-    .track-card img { width: 60px; height: 45px; border-radius: 6px; object-fit: cover; }
-    .track-info { flex: 1; min-width: 0; }
-    .track-title { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .track-artist { font-size: 12px; color: #aaa; margin-top: 2px; }
+    .quick-tags { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; width: 100%; max-width: 500px; margin-bottom: 20px; }
+    .tag { background: #282828; color: #aaa; padding: 6px 14px; border-radius: 15px; font-size: 12px; cursor: pointer; border: 1px solid #333; }
+    .tag:active { background: #1db954; color: #000; }
 
-    .player-bar { position: fixed; bottom: 0; left: 0; right: 0; background: #181818; border-top: 1px solid #282828; padding: 10px; display: flex; flex-direction: column; align-items: center; gap: 8px; box-shadow: 0 -4px 12px rgba(0,0,0,0.5); z-index: 100; }
-    .now-playing { font-size: 13px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #1db954; font-weight: 500; width: 100%; }
-    .iframe-container { width: 100%; max-width: 400px; height: 180px; border-radius: 10px; overflow: hidden; background: #000; }
-    iframe { width: 100%; height: 100%; border: none; }
+    .player-container { width: 100%; max-width: 500px; background: #1e1e1e; border-radius: 12px; padding: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.6); border: 1px solid #282828; }
+    .now-playing { font-size: 13px; text-align: center; color: #1db954; font-weight: 600; margin-bottom: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .iframe-wrapper { position: relative; width: 100%; padding-top: 56.25%; border-radius: 8px; overflow: hidden; background: #000; }
+    .iframe-wrapper iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none; }
   </style>
 </head>
 <body>
   <h1>🎵 My Music Player</h1>
 
   <div class="search-box">
-    <input type="text" id="searchInput" placeholder="Search songs, artists, or videos...">
-    <button onclick="searchMusic()">Search</button>
+    <input type="text" id="searchInput" placeholder="Enter song name or artist...">
+    <button onclick="playSong()">Play</button>
   </div>
 
-  <div id="tracks" class="track-list">Loading full songs...</div>
+  <div class="quick-tags">
+    <span class="tag" onclick="quickPlay('Supreme Shubh')">Supreme - Shubh</span>
+    <span class="tag" onclick="quickPlay('Karan Aujla hits')">Karan Aujla</span>
+    <span class="tag" onclick="quickPlay('Sidhu Moose Wala')">Sidhu Moose Wala</span>
+  </div>
 
-  <div class="player-bar">
-    <div id="nowPlaying" class="now-playing">Tap any track to play full song</div>
-    <div class="iframe-container">
-      <iframe id="ytPlayer" src="" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+  <div class="player-container">
+    <div id="nowPlaying" class="now-playing">Playing: Supreme - Shubh</div>
+    <div class="iframe-wrapper">
+      <iframe id="ytPlayer" src="https://www.youtube-nocookie.com/embed?listType=search&list=Supreme+Shubh" allow="autoplay; encrypted-media" allowfullscreen></iframe>
     </div>
   </div>
 
   <script>
-    const INSTANCES = [
-      'https://inv.nadeko.net',
-      'https://invidious.nerdvpn.de',
-      'https://yt.chocolatemoo53.com',
-      'https://invidious.tiekoetter.com'
-    ];
-
-    const tracksContainer = document.getElementById('tracks');
+    const searchInput = document.getElementById('searchInput');
     const ytPlayer = document.getElementById('ytPlayer');
     const nowPlaying = document.getElementById('nowPlaying');
-    const searchInput = document.getElementById('searchInput');
 
-    async function fetchFromInvidious(query) {
-      for (const instance of INSTANCES) {
-        try {
-          const res = await fetch(`${instance}/api/v1/search?q=${encodeURIComponent(query)}&type=video`);
-          if (res.ok) {
-            const data = await res.json();
-            if (Array.isArray(data) && data.length > 0) return data;
-          }
-        } catch (e) {
-          // Try next public instance if one fails
-        }
-      }
-      return null;
+    function playSong() {
+      const query = searchInput.value.trim();
+      if (!query) return;
+      
+      nowPlaying.textContent = `Playing: ${query}`;
+      ytPlayer.src = `https://www.youtube-nocookie.com/embed?listType=search&list=${encodeURIComponent(query)}&autoplay=1`;
     }
 
-    async function searchMusic(query = null) {
-      const searchTerm = query || searchInput.value.trim() || 'Supreme Shubh song';
-      tracksContainer.innerHTML = '<p style="text-align:center; color:#aaa;">Searching YouTube...</p>';
-
-      const results = await fetchFromInvidious(searchTerm);
-
-      if (!results || results.length === 0) {
-        tracksContainer.innerHTML = '<p style="text-align:center; color:#aaa;">No tracks found. Please try another search!</p>';
-        return;
-      }
-
-      tracksContainer.innerHTML = '';
-      results.forEach(video => {
-        if (!video.videoId) return;
-
-        const card = document.createElement('div');
-        card.className = 'track-card';
-        const thumbnail = (video.videoThumbnails && video.videoThumbnails[0]) ? video.videoThumbnails[0].url : 'https://via.placeholder.com/60x45?text=Music';
-        
-        card.innerHTML = `
-          <img src="${thumbnail}" alt="${video.title}">
-          <div class="track-info">
-            <div class="track-title">${video.title}</div>
-            <div class="track-artist">${video.author || 'Artist'}</div>
-          </div>
-        `;
-        card.onclick = () => {
-          ytPlayer.src = `https://www.youtube-nocookie.com/embed/${video.videoId}?autoplay=1&enablejsapi=1`;
-          nowPlaying.textContent = `▶ ${video.title}`;
-        };
-        tracksContainer.appendChild(card);
-      });
+    function quickPlay(songName) {
+      searchInput.value = songName;
+      playSong();
     }
 
     searchInput.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') searchMusic();
+      if (e.key === 'Enter') playSong();
     });
-
-    // Default initial search
-    searchMusic('Supreme Shubh song');
   </script>
 </body>
 </html>
