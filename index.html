@@ -257,7 +257,7 @@
     <div class="tag" onclick="quickSearch('Sidhu Moosewala')">👑 Sidhu Moosewala</div>
   </div>
 
-  <div id="status" class="status">Tap search or select a tag to start your playlist.</div>
+  <div id="status" class="status">Tap search or select a tag to start.</div>
 
   <div id="trackList" class="track-list"></div>
 
@@ -274,10 +274,8 @@
   </div>
 
   <script>
-    // State management
     let currentPlaylist = [];
     let currentIndex = 0;
-    let isFetchingRecommendations = false;
 
     const searchInput = document.getElementById('searchInput');
     const trackList = document.getElementById('trackList');
@@ -288,26 +286,17 @@
     const playerTitle = document.getElementById('playerTitle');
     const playerArtist = document.getElementById('playerArtist');
 
-    // Handle Enter keypress
     searchInput.addEventListener('keypress', (e) => {
       if (e.key === 'Enter') handleSearch();
     });
 
-    // AUTO-PLAY NEXT TRACK WHEN CURRENT SONG ENDS
-    audioPlayer.addEventListener('ended', async () => {
+    // Auto-play next full track
+    audioPlayer.addEventListener('ended', () => {
       if (currentIndex + 1 < currentPlaylist.length) {
         currentIndex++;
         playSongAtIndex(currentIndex);
       } else {
-        status.textContent = '✨ Generating similar songs for autoplay...';
-        await loadSimilarSongs(currentPlaylist[currentIndex]);
-        
-        if (currentIndex + 1 < currentPlaylist.length) {
-          currentIndex++;
-          playSongAtIndex(currentIndex);
-        } else {
-          status.textContent = 'Playlist completed.';
-        }
+        status.textContent = 'Playlist completed.';
       }
     });
 
@@ -320,7 +309,7 @@
       const query = searchInput.value.trim();
       if (!query) return;
 
-      status.textContent = 'Searching network servers...';
+      status.textContent = 'Searching full track servers...';
       trackList.innerHTML = '';
 
       const songs = await fetchSongs(query);
@@ -328,18 +317,19 @@
       if (songs && songs.length > 0) {
         currentPlaylist = songs;
         currentIndex = 0;
-        status.textContent = `▶ Loaded ${songs.length} tracks. Tap any track to play:`;
+        status.textContent = `▶ Loaded ${songs.length} full tracks. Tap any track to play:`;
         renderTracks();
       } else {
         status.textContent = 'No tracks found. Try another search.';
       }
     }
 
-    // Multi-Server API Fetcher
+    // Full-Length Streaming Endpoints Only
     async function fetchSongs(query) {
       const endpoints = [
-        `https://saavn.dev/api/search/songs?query=${encodeURIComponent(query)}`,
-        `https://saavn.sumit.co/api/search/songs?query=${encodeURIComponent(query)}`
+        `https://saavn.dev/api/search/songs?query=${encodeURIComponent(query)}&limit=20`,
+        `https://saavn.sumit.co/api/search/songs?query=${encodeURIComponent(query)}&limit=20`,
+        `https://jiosaavn-api-private-us.vercel.app/search/songs?query=${encodeURIComponent(query)}&limit=20`
       ];
 
       for (const url of endpoints) {
@@ -347,82 +337,43 @@
           const res = await fetch(url);
           if (!res.ok) continue;
           const json = await res.json();
-          const items = json?.data?.results || json?.results || [];
+          const items = json?.data?.results || json?.results || json?.data || [];
 
-          if (items.length > 0) {
-            return formatSongsData(items);
+          if (Array.isArray(items) && items.length > 0) {
+            const formatted = formatSongsData(items);
+            if (formatted.length > 0) return formatted;
           }
         } catch (e) {
           console.warn('API Endpoint failed, trying next...', e);
         }
       }
 
-      // iTunes Fallback
-      try {
-        const itunesRes = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(query)}&media=music&limit=15`);
-        if (itunesRes.ok) {
-          const itunesData = await itunesRes.json();
-          if (itunesData.results && itunesData.results.length > 0) {
-            return itunesData.results.map(item => ({
-              id: item.trackId,
-              title: cleanText(item.trackName),
-              artist: cleanText(item.artistName || 'Unknown Artist'),
-              image: item.artworkUrl100?.replace('100x100bb', '300x300bb') || '',
-              audio: item.previewUrl
-            }));
-          }
-        }
-      } catch (e) {}
-
       return [];
     }
 
-    // SPOTIFY-LIKE "MILTE JULTE SONG" RECOMMENDATION GENERATOR
-    async function loadSimilarSongs(currentSong) {
-      if (isFetchingRecommendations || !currentSong) return;
-      isFetchingRecommendations = true;
-
-      try {
-        if (currentSong.id) {
-          const recUrl = `https://saavn.dev/api/songs/${currentSong.id}/suggestions?limit=10`;
-          const res = await fetch(recUrl);
-          if (res.ok) {
-            const json = await res.json();
-            const recs = json?.data || [];
-            if (recs.length > 0) {
-              appendNewUniqueSongs(formatSongsData(recs));
-              isFetchingRecommendations = false;
-              return;
-            }
-          }
+    function extractFullAudioUrl(item) {
+      const dl = item.downloadUrl || item.download_url;
+      if (Array.isArray(dl) && dl.length > 0) {
+        // Always pick 320kbps or 160kbps high-quality full track links
+        const target = dl.find(d => d.quality === '320kbps') || 
+                       dl.find(d => d.quality === '160kbps') || 
+                       dl[dl.length - 1];
+        if (target) {
+          return target.url || target.link || (typeof target === 'string' ? target : '');
         }
-
-        // Fallback: Fetch tracks by primary artist name
-        const primaryArtist = currentSong.artist.split(/[,&]/)[0].trim();
-        if (primaryArtist && primaryArtist !== 'Unknown Artist') {
-          const artistSongs = await fetchSongs(primaryArtist);
-          if (artistSongs.length > 0) {
-            appendNewUniqueSongs(artistSongs);
-          }
-        }
-      } catch (e) {
-        console.warn('Failed to load similar songs:', e);
       }
-      
-      isFetchingRecommendations = false;
+      if (typeof item.url === 'string' && (item.url.includes('.mp3') || item.url.includes('.m4a'))) return item.url;
+      if (typeof item.media_url === 'string') return item.media_url;
+      return '';
     }
 
-    // Comprehensive Artist Name Extractor
     function extractArtistName(item) {
-      // 1. Array of primary artist objects
       if (item.artists && Array.isArray(item.artists.primary) && item.artists.primary.length > 0) {
         return item.artists.primary.map(a => a.name).join(', ');
       }
       if (item.artists && Array.isArray(item.artists.all) && item.artists.all.length > 0) {
         return item.artists.all.map(a => a.name).join(', ');
       }
-
-      // 2. Direct string fields
       if (typeof item.primaryArtists === 'string' && item.primaryArtists.trim() !== '') {
         return item.primaryArtists;
       }
@@ -432,13 +383,9 @@
       if (typeof item.artistName === 'string' && item.artistName.trim() !== '') {
         return item.artistName;
       }
-
-      // 3. Array under primaryArtists or artists
       if (Array.isArray(item.primaryArtists) && item.primaryArtists.length > 0) {
         return item.primaryArtists.map(a => typeof a === 'string' ? a : a.name).join(', ');
       }
-
-      // 4. Fallback: subtitle or singers field
       if (item.subtitle && typeof item.subtitle === 'string' && item.subtitle.trim() !== '') {
         return item.subtitle;
       }
@@ -458,13 +405,7 @@
           img = item.image;
         }
 
-        let audio = '';
-        if (Array.isArray(item.downloadUrl)) {
-          audio = item.downloadUrl[item.downloadUrl.length - 1]?.url || item.downloadUrl[0]?.url || '';
-        } else if (typeof item.url === 'string') {
-          audio = item.url;
-        }
-
+        const audio = extractFullAudioUrl(item);
         const rawTitle = item.name || item.title || 'Unknown Title';
         const rawArtist = extractArtistName(item);
 
@@ -476,17 +417,6 @@
           audio: audio
         };
       }).filter(s => s.audio);
-    }
-
-    function appendNewUniqueSongs(newSongs) {
-      const existingTitles = new Set(currentPlaylist.map(s => s.title.toLowerCase()));
-      const uniqueNewSongs = newSongs.filter(s => !existingTitles.has(s.title.toLowerCase()));
-
-      if (uniqueNewSongs.length > 0) {
-        currentPlaylist = [...currentPlaylist, ...uniqueNewSongs];
-        renderTracks();
-        status.textContent = `✨ Added ${uniqueNewSongs.length} similar songs to your queue!`;
-      }
     }
 
     function renderTracks() {
@@ -508,7 +438,6 @@
         card.onclick = () => {
           currentIndex = index;
           playSongAtIndex(currentIndex);
-          loadSimilarSongs(song);
         };
 
         trackList.appendChild(card);
@@ -529,7 +458,6 @@
       renderTracks();
     }
 
-    // Helper to decode HTML entities like &quot; or &amp;
     function cleanText(str) {
       if (!str) return '';
       const txt = document.createElement('textarea');
@@ -541,7 +469,6 @@
       return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
     }
 
-    // Initial search load
     handleSearch();
   </script>
 </body>
