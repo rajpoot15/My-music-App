@@ -1,185 +1,398 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>My Mobile Music Player</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>My Music Player</title>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { 
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
-      background: #121212; 
-      color: #fff; 
-      padding: 16px; 
-      padding-bottom: 220px; 
+    :root {
+      --bg: #121212;
+      --card: #1e1e1e;
+      --primary: #1db954;
+      --text: #ffffff;
+      --subtext: #b3b3b3;
     }
-    h1 { margin-bottom: 14px; font-size: 22px; text-align: center; color: #1db954; }
-    
-    .search-box { display: flex; gap: 8px; margin-bottom: 12px; }
-    .search-box input { flex: 1; padding: 12px 16px; border-radius: 20px; border: none; background: #282828; color: #fff; font-size: 14px; outline: none; }
-    .search-box button { padding: 12px 20px; border-radius: 20px; border: none; background: #1db954; color: #000; font-weight: bold; cursor: pointer; }
 
-    .quick-tags { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 8px; margin-bottom: 14px; scrollbar-width: none; }
-    .quick-tags::-webkit-scrollbar { display: none; }
-    .tag { background: #282828; color: #ccc; padding: 6px 14px; border-radius: 16px; font-size: 12px; white-space: nowrap; cursor: pointer; border: 1px solid #333; flex-shrink: 0; }
-    .tag:active { background: #1db954; color: #000; }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
 
-    .track-list { display: flex; flex-direction: column; gap: 10px; }
-    .track-card { display: flex; align-items: center; gap: 12px; background: #1e1e1e; padding: 10px; border-radius: 8px; cursor: pointer; border: 1px solid #282828; }
-    .track-card:active { background: #282828; border-color: #1db954; }
-    .track-card img { width: 64px; height: 48px; border-radius: 6px; object-fit: cover; background: #333; }
-    .track-info { flex: 1; min-width: 0; }
-    .track-title { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #fff; }
-    .track-artist { font-size: 12px; color: #aaa; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      padding: 16px;
+      padding-bottom: 120px;
+      max-width: 600px;
+      margin: 0 auto;
+    }
 
-    .player-bar { position: fixed; bottom: 0; left: 0; right: 0; background: #181818; border-top: 1px solid #282828; padding: 12px; display: flex; flex-direction: column; align-items: center; gap: 8px; box-shadow: 0 -6px 20px rgba(0,0,0,0.7); z-index: 100; }
-    .now-playing { font-size: 13px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #1db954; font-weight: 600; width: 100%; max-width: 500px; }
-    .iframe-container { width: 100%; max-width: 500px; height: 150px; border-radius: 10px; overflow: hidden; background: #000; border: 1px solid #333; }
-    iframe { width: 100%; height: 100%; border: none; }
-    
-    .status-msg { text-align: center; color: #aaa; font-size: 14px; margin-top: 20px; }
+    header {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    h1 {
+      color: var(--primary);
+      font-size: 1.8rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .search-box {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+
+    input[type="text"] {
+      flex: 1;
+      padding: 12px 16px;
+      border-radius: 25px;
+      border: 1px solid #333;
+      background: var(--card);
+      color: var(--text);
+      font-size: 1rem;
+      outline: none;
+    }
+
+    input[type="text"]:focus {
+      border-color: var(--primary);
+    }
+
+    button.search-btn {
+      padding: 12px 20px;
+      border-radius: 25px;
+      border: none;
+      background: var(--primary);
+      color: #000;
+      font-weight: bold;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+
+    .tags {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding-bottom: 10px;
+      margin-bottom: 20px;
+      scrollbar-width: none;
+    }
+
+    .tags::-webkit-scrollbar {
+      display: none;
+    }
+
+    .tag {
+      background: var(--card);
+      border: 1px solid #333;
+      color: var(--subtext);
+      padding: 8px 14px;
+      border-radius: 20px;
+      white-space: nowrap;
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+
+    .tag:hover {
+      border-color: var(--primary);
+      color: var(--text);
+    }
+
+    .status {
+      text-align: center;
+      color: var(--subtext);
+      margin: 30px 0;
+      font-size: 0.95rem;
+    }
+
+    .track-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .track-card {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: var(--card);
+      padding: 10px 14px;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .track-card:hover {
+      background: #282828;
+    }
+
+    .track-img {
+      width: 52px;
+      height: 52px;
+      border-radius: 8px;
+      object-fit: cover;
+      background: #333;
+    }
+
+    .track-info {
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .track-title {
+      font-size: 0.95rem;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .track-artist {
+      font-size: 0.8rem;
+      color: var(--subtext);
+      margin-top: 4px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .play-icon {
+      color: var(--primary);
+      font-size: 1.2rem;
+    }
+
+    /* Sticky Bottom Player */
+    .player-bar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: #181818;
+      border-top: 1px solid #282828;
+      padding: 12px 16px;
+      display: none;
+      flex-direction: column;
+      gap: 10px;
+      box-shadow: 0 -4px 20px rgba(0,0,0,0.5);
+      z-index: 100;
+    }
+
+    .player-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .player-header img {
+      width: 45px;
+      height: 45px;
+      border-radius: 6px;
+      object-fit: cover;
+    }
+
+    .player-title-box {
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .player-title {
+      font-size: 0.9rem;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .player-artist {
+      font-size: 0.75rem;
+      color: var(--subtext);
+    }
+
+    audio {
+      width: 100%;
+      height: 36px;
+      outline: none;
+    }
   </style>
 </head>
 <body>
-  <h1>🎵 My Music Player</h1>
+
+  <header>
+    <h1>🎵 My Music Player</h1>
+  </header>
 
   <div class="search-box">
-    <input type="text" id="searchInput" placeholder="Search song or artist name...">
-    <button onclick="searchMusic()">Search</button>
+    <input type="text" id="searchInput" placeholder="Search song or artist..." value="Supreme" />
+    <button class="search-btn" onclick="handleSearch()">Search</button>
   </div>
 
-  <div class="quick-tags">
-    <span class="tag" onclick="quickSearch('Supreme Shubh')">🔥 Supreme - Shubh</span>
-    <span class="tag" onclick="quickSearch('Karan Aujla')">🎤 Karan Aujla</span>
-    <span class="tag" onclick="quickSearch('Sidhu Moose Wala')">👑 Sidhu Moose Wala</span>
-    <span class="tag" onclick="quickSearch('Starboy')">✨ Starboy</span>
+  <div class="tags">
+    <div class="tag" onclick="quickSearch('Supreme Shubh')">🔥 Supreme - Shubh</div>
+    <div class="tag" onclick="quickSearch('Karan Aujla')">🎤 Karan Aujla</div>
+    <div class="tag" onclick="quickSearch('Sidhu Moose Wala')">👑 Sidhu Moosewala</div>
+    <div class="tag" onclick="quickSearch('Softly Ikky')">🎶 Softly - Karan Aujla</div>
   </div>
 
-  <div id="tracks" class="track-list">
-    <div class="status-msg">Type a song name above or tap a tag to search!</div>
-  </div>
+  <div id="status" class="status">Tap search or select a tag to find music.</div>
 
-  <div class="player-bar">
-    <div id="nowPlaying" class="now-playing">Tap any track below to play full song</div>
-    <div class="iframe-container">
-      <iframe id="ytPlayer" src="" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+  <div id="trackList" class="track-list"></div>
+
+  <!-- Bottom Player -->
+  <div id="playerBar" class="player-bar">
+    <div class="player-header">
+      <img id="playerImg" src="" alt="Cover" />
+      <div class="player-title-box">
+        <div id="playerTitle" class="player-title">Track Name</div>
+        <div id="playerArtist" class="player-artist">Artist</div>
+      </div>
     </div>
+    <audio id="audioPlayer" controls autoplay></audio>
   </div>
 
   <script>
-    // Multi-instance failover list (Piped & Invidious APIs)
-    const SEARCH_APIS = [
-      { url: 'https://pipedapi.kavin.rocks/search?q=', type: 'piped' },
-      { url: 'https://api.piped.privacydev.net/search?q=', type: 'piped' },
-      { url: 'https://inv.nadeko.net/api/v1/search?q=', type: 'invidious' },
-      { url: 'https://yewtu.be/api/v1/search?q=', type: 'invidious' }
-    ];
-
-    const tracksContainer = document.getElementById('tracks');
-    const ytPlayer = document.getElementById('ytPlayer');
-    const nowPlaying = document.getElementById('nowPlaying');
     const searchInput = document.getElementById('searchInput');
+    const trackList = document.getElementById('trackList');
+    const status = document.getElementById('status');
+    const playerBar = document.getElementById('playerBar');
+    const audioPlayer = document.getElementById('audioPlayer');
+    const playerImg = document.getElementById('playerImg');
+    const playerTitle = document.getElementById('playerTitle');
+    const playerArtist = document.getElementById('playerArtist');
 
-    async function searchMusic(query = null) {
-      const searchTerm = query || searchInput.value.trim();
-      if (!searchTerm) {
-        tracksContainer.innerHTML = '<div class="status-msg">Please enter a search term!</div>';
-        return;
+    // Automatically search on Enter key
+    searchInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') handleSearch();
+    });
+
+    function quickSearch(query) {
+      searchInput.value = query;
+      handleSearch();
+    }
+
+    async function handleSearch() {
+      const query = searchInput.value.trim();
+      if (!query) return;
+
+      status.textContent = 'Searching network servers...';
+      trackList.innerHTML = '';
+
+      const songs = await fetchSongs(query);
+
+      if (songs && songs.length > 0) {
+        status.textContent = `Found ${songs.length} tracks. Tap any track to play:`;
+        renderTracks(songs);
+      } else {
+        status.textContent = 'No tracks found. Try searching another song or artist.';
       }
+    }
 
-      tracksContainer.innerHTML = '<div class="status-msg">🔍 Searching tracks...</div>';
+    // Multi-Server API Fetcher (JioSaavn + iTunes Fallback)
+    async function fetchSongs(query) {
+      const endpoints = [
+        `https://saavn.dev/api/search/songs?query=${encodeURIComponent(query)}`,
+        `https://saavn.sumit.co/api/search/songs?query=${encodeURIComponent(query)}`
+      ];
 
-      let items = [];
-
-      for (const api of SEARCH_APIS) {
+      // Try JioSaavn High-Quality APIs
+      for (const url of endpoints) {
         try {
-          const res = await fetch(`${api.url}${encodeURIComponent(searchTerm)}`);
-          if (res.ok) {
-            const data = await res.json();
-            
-            if (api.type === 'piped' && data.items && data.items.length > 0) {
-              items = data.items
-                .filter(i => i.type === 'stream')
-                .map(i => ({
-                  id: i.url ? i.url.replace('/watch?v=', '') : '',
-                  title: i.title,
-                  artist: i.uploaderName || 'Artist',
-                  thumbnail: i.thumbnail
-                }));
-            } else if (api.type === 'invidious' && Array.isArray(data) && data.length > 0) {
-              items = data
-                .filter(i => i.videoId)
-                .map(i => ({
-                  id: i.videoId,
-                  title: i.title,
-                  artist: i.author || 'Artist',
-                  thumbnail: i.videoThumbnails && i.videoThumbnails[0] ? i.videoThumbnails[0].url : ''
-                }));
-            }
+          const res = await fetch(url);
+          if (!res.ok) continue;
+          const json = await res.json();
+          const items = json?.data?.results || json?.results || [];
 
-            if (items.length > 0) break; // Stop loop once results are retrieved
+          if (items.length > 0) {
+            return items.map(item => {
+              // Extract highest quality image
+              let img = '';
+              if (Array.isArray(item.image)) {
+                img = item.image[item.image.length - 1]?.url || item.image[0]?.url || '';
+              } else if (typeof item.image === 'string') {
+                img = item.image;
+              }
+
+              // Extract audio download/stream URL
+              let audio = '';
+              if (Array.isArray(item.downloadUrl)) {
+                audio = item.downloadUrl[item.downloadUrl.length - 1]?.url || item.downloadUrl[0]?.url || '';
+              } else if (typeof item.url === 'string') {
+                audio = item.url;
+              }
+
+              return {
+                title: item.name || item.title || 'Unknown Title',
+                artist: item.primaryArtists || item.artist || 'Unknown Artist',
+                image: img || 'https://via.placeholder.com/150',
+                audio: audio
+              };
+            }).filter(song => song.audio);
           }
         } catch (e) {
-          // Fall back to next public API instance if blocked
+          console.warn('API Endpoint failed, trying next...', e);
         }
       }
 
-      if (items.length === 0) {
-        tracksContainer.innerHTML = `
-          <div class="status-msg">
-            <p>No tracks found from network servers.</p>
-            <p style="font-size: 12px; color: #777; margin-top: 6px;">Try simplifying your search phrase.</p>
-          </div>
-        `;
-        return;
+      // Fallback to iTunes API if primary servers are unreachable
+      try {
+        const itunesRes = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(query)}&media=music&limit=15`);
+        if (itunesRes.ok) {
+          const itunesData = await itunesRes.json();
+          if (itunesData.results && itunesData.results.length > 0) {
+            return itunesData.results.map(item => ({
+              title: item.trackName,
+              artist: item.artistName,
+              image: item.artworkUrl100?.replace('100x100bb', '300x300bb') || '',
+              audio: item.previewUrl
+            }));
+          }
+        }
+      } catch (e) {
+        console.error('iTunes fallback failed:', e);
       }
 
-      renderTracks(items);
+      return [];
     }
 
-    function renderTracks(items) {
-      tracksContainer.innerHTML = '';
-      
-      items.forEach((track) => {
-        if (!track.id) return;
-
+    function renderTracks(songs) {
+      trackList.innerHTML = '';
+      songs.forEach(song => {
         const card = document.createElement('div');
         card.className = 'track-card';
-        const thumbUrl = track.thumbnail || 'https://via.placeholder.com/64x48?text=Music';
-
         card.innerHTML = `
-          <img src="${thumbUrl}" alt="Cover">
+          <img class="track-img" src="${song.image}" alt="${song.title}" />
           <div class="track-info">
-            <div class="track-title">${track.title}</div>
-            <div class="track-artist">👤 ${track.artist}</div>
+            <div class="track-title">${escapeHtml(song.title)}</div>
+            <div class="track-artist">${escapeHtml(song.artist)}</div>
           </div>
+          <div class="play-icon">▶</div>
         `;
 
-        card.onclick = () => {
-          playTrack(track.id, track.title);
-        };
-
-        tracksContainer.appendChild(card);
+        card.onclick = () => playSong(song);
+        trackList.appendChild(card);
       });
     }
 
-    function playTrack(videoId, title) {
-      nowPlaying.textContent = `▶ ${title}`;
-      // Direct YouTube Video Embed URL (Bypasses listType restrictions)
-      ytPlayer.src = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&enablejsapi=1`;
+    function playSong(song) {
+      playerImg.src = song.image;
+      playerTitle.textContent = song.title;
+      playerArtist.textContent = song.artist;
+      audioPlayer.src = song.audio;
+      playerBar.style.display = 'flex';
+      audioPlayer.play().catch(e => console.log('Autoplay prevented:', e));
     }
 
-    function quickSearch(tagQuery) {
-      searchInput.value = tagQuery;
-      searchMusic(tagQuery);
+    function escapeHtml(str) {
+      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
     }
 
-    searchInput.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') searchMusic();
-    });
-
-    // Default search when page opens
-    searchMusic('Supreme Shubh');
+    // Auto load initial search on start
+    handleSearch();
   </script>
 </body>
 </html>
