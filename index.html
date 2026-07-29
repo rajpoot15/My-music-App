@@ -25,7 +25,7 @@
       background-color: var(--bg);
       color: var(--text);
       padding: 16px;
-      padding-bottom: 130px;
+      padding-bottom: 140px;
       max-width: 600px;
       margin: 0 auto;
     }
@@ -134,7 +134,6 @@
       background: var(--card-active);
     }
 
-    /* Highlight currently playing song */
     .track-card.active {
       background: #18281e;
       border-color: var(--primary);
@@ -246,18 +245,18 @@
   </header>
 
   <div class="search-box">
-    <input type="text" id="searchInput" placeholder="Search song or artist..." value="Faded Alan Walker" />
+    <input type="text" id="searchInput" placeholder="Search song or artist..." value="Karan Aujla" />
     <button class="search-btn" onclick="handleSearch()">Search</button>
   </div>
 
   <div class="tags">
-    <div class="tag" onclick="quickSearch('Faded Alan Walker')">🎧 Faded - Alan Walker</div>
-    <div class="tag" onclick="quickSearch('Supreme Shubh')">🔥 Supreme - Shubh</div>
     <div class="tag" onclick="quickSearch('Karan Aujla')">🎤 Karan Aujla</div>
+    <div class="tag" onclick="quickSearch('Supreme Shubh')">🔥 Supreme - Shubh</div>
+    <div class="tag" onclick="quickSearch('Faded Alan Walker')">🎧 Faded - Alan Walker</div>
     <div class="tag" onclick="quickSearch('Sidhu Moosewala')">👑 Sidhu Moosewala</div>
   </div>
 
-  <div id="status" class="status">Tap search or select a tag to start.</div>
+  <div id="status" class="status">Connecting to music servers...</div>
 
   <div id="trackList" class="track-list"></div>
 
@@ -290,13 +289,10 @@
       if (e.key === 'Enter') handleSearch();
     });
 
-    // Auto-play next full track
     audioPlayer.addEventListener('ended', () => {
       if (currentIndex + 1 < currentPlaylist.length) {
         currentIndex++;
         playSongAtIndex(currentIndex);
-      } else {
-        status.textContent = 'Playlist completed.';
       }
     });
 
@@ -309,52 +305,97 @@
       const query = searchInput.value.trim();
       if (!query) return;
 
-      status.textContent = 'Searching full track servers...';
+      status.textContent = 'Searching music servers...';
       trackList.innerHTML = '';
 
-      const songs = await fetchSongs(query);
+      const resData = await fetchSongs(query);
 
-      if (songs && songs.length > 0) {
-        currentPlaylist = songs;
+      if (resData && resData.tracks && resData.tracks.length > 0) {
+        currentPlaylist = resData.tracks;
         currentIndex = 0;
-        status.textContent = `▶ Loaded ${songs.length} full tracks. Tap any track to play:`;
+        status.textContent = `▶ Loaded ${resData.tracks.length} tracks. Tap any song to play:`;
         renderTracks();
       } else {
-        status.textContent = 'No tracks found. Try another search.';
+        status.textContent = 'No tracks found. Please try another search term.';
       }
     }
 
-    // Full-Length Streaming Endpoints Only
+    // Multi-Server Fetch with Anti-CORS Proxies & Fallbacks
     async function fetchSongs(query) {
-      const endpoints = [
-        `https://saavn.dev/api/search/songs?query=${encodeURIComponent(query)}&limit=20`,
-        `https://saavn.sumit.co/api/search/songs?query=${encodeURIComponent(query)}&limit=20`,
-        `https://jiosaavn-api-private-us.vercel.app/search/songs?query=${encodeURIComponent(query)}&limit=20`
+      const cleanQuery = encodeURIComponent(query);
+
+      // Direct Saavn Endpoints
+      const saavnUrls = [
+        `https://saavn.dev/api/search/songs?query=${cleanQuery}&limit=25`,
+        `https://saavn.sumit.co/api/search/songs?query=${cleanQuery}&limit=25`,
+        `https://saavn.me/api/search/songs?query=${cleanQuery}&limit=25`
       ];
 
-      for (const url of endpoints) {
+      // 1. Try Direct Requests
+      for (const url of saavnUrls) {
         try {
-          const res = await fetch(url);
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 3500);
+          const res = await fetch(url, { signal: controller.signal });
+          clearTimeout(timeout);
+
           if (!res.ok) continue;
           const json = await res.json();
           const items = json?.data?.results || json?.results || json?.data || [];
 
           if (Array.isArray(items) && items.length > 0) {
-            const formatted = formatSongsData(items);
-            if (formatted.length > 0) return formatted;
+            const formatted = formatSaavnData(items);
+            if (formatted.length > 0) return { tracks: formatted };
           }
         } catch (e) {
-          console.warn('API Endpoint failed, trying next...', e);
+          console.warn('Direct fetch failed, trying next server...', url);
         }
       }
 
-      return [];
+      // 2. Try CORS-Bypassing Proxies
+      const proxiedUrls = [
+        `https://api.allorigins.win/get?url=${encodeURIComponent(`https://saavn.dev/api/search/songs?query=${cleanQuery}&limit=25`)}`,
+        `https://api.allorigins.win/get?url=${encodeURIComponent(`https://saavn.sumit.co/api/search/songs?query=${cleanQuery}&limit=25`)}`
+      ];
+
+      for (const url of proxiedUrls) {
+        try {
+          const res = await fetch(url);
+          if (!res.ok) continue;
+          const data = await res.json();
+          const json = JSON.parse(data.contents);
+          const items = json?.data?.results || json?.results || json?.data || [];
+
+          if (Array.isArray(items) && items.length > 0) {
+            const formatted = formatSaavnData(items);
+            if (formatted.length > 0) return { tracks: formatted };
+          }
+        } catch (e) {
+          console.warn('Proxy fetch failed...', e);
+        }
+      }
+
+      // 3. Last-Resort iTunes Music Fallback
+      try {
+        const itunesUrl = `https://itunes.apple.com/search?term=${cleanQuery}&media=music&limit=25`;
+        const res = await fetch(itunesUrl);
+        if (res.ok) {
+          const json = await res.json();
+          if (json.results && json.results.length > 0) {
+            const formatted = formatiTunesData(json.results);
+            return { tracks: formatted };
+          }
+        }
+      } catch (e) {
+        console.warn('iTunes fallback failed:', e);
+      }
+
+      return { tracks: [] };
     }
 
-    function extractFullAudioUrl(item) {
-      const dl = item.downloadUrl || item.download_url;
+    function extractAudioUrl(item) {
+      let dl = item.downloadUrl || item.download_url || item.media_url;
       if (Array.isArray(dl) && dl.length > 0) {
-        // Always pick 320kbps or 160kbps high-quality full track links
         const target = dl.find(d => d.quality === '320kbps') || 
                        dl.find(d => d.quality === '160kbps') || 
                        dl[dl.length - 1];
@@ -362,8 +403,8 @@
           return target.url || target.link || (typeof target === 'string' ? target : '');
         }
       }
+      if (typeof dl === 'string' && dl.startsWith('http')) return dl;
       if (typeof item.url === 'string' && (item.url.includes('.mp3') || item.url.includes('.m4a'))) return item.url;
-      if (typeof item.media_url === 'string') return item.media_url;
       return '';
     }
 
@@ -380,23 +421,13 @@
       if (typeof item.artist === 'string' && item.artist.trim() !== '') {
         return item.artist;
       }
-      if (typeof item.artistName === 'string' && item.artistName.trim() !== '') {
-        return item.artistName;
-      }
-      if (Array.isArray(item.primaryArtists) && item.primaryArtists.length > 0) {
-        return item.primaryArtists.map(a => typeof a === 'string' ? a : a.name).join(', ');
-      }
       if (item.subtitle && typeof item.subtitle === 'string' && item.subtitle.trim() !== '') {
         return item.subtitle;
       }
-      if (item.more_info && item.more_info.singers) {
-        return item.more_info.singers;
-      }
-
       return 'Unknown Artist';
     }
 
-    function formatSongsData(items) {
+    function formatSaavnData(items) {
       return items.map(item => {
         let img = '';
         if (Array.isArray(item.image)) {
@@ -405,18 +436,28 @@
           img = item.image;
         }
 
-        const audio = extractFullAudioUrl(item);
+        const audio = extractAudioUrl(item);
         const rawTitle = item.name || item.title || 'Unknown Title';
         const rawArtist = extractArtistName(item);
 
         return {
-          id: item.id || '',
+          id: item.id || Math.random().toString(),
           title: cleanText(rawTitle),
           artist: cleanText(rawArtist),
           image: img || 'https://via.placeholder.com/150',
           audio: audio
         };
       }).filter(s => s.audio);
+    }
+
+    function formatiTunesData(items) {
+      return items.map(item => ({
+        id: item.trackId || Math.random().toString(),
+        title: cleanText(item.trackName || 'Unknown Title'),
+        artist: cleanText(item.artistName || 'Unknown Artist'),
+        image: item.artworkUrl100 ? item.artworkUrl100.replace('100x100bb', '300x300bb') : 'https://via.placeholder.com/150',
+        audio: item.previewUrl || ''
+      })).filter(s => s.audio);
     }
 
     function renderTracks() {
@@ -454,7 +495,7 @@
       audioPlayer.src = song.audio;
       playerBar.style.display = 'flex';
 
-      audioPlayer.play().catch(e => console.log('Autoplay policy error:', e));
+      audioPlayer.play().catch(e => console.log('Autoplay error:', e));
       renderTracks();
     }
 
@@ -469,6 +510,7 @@
       return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
     }
 
+    // Initial Search
     handleSearch();
   </script>
 </body>
