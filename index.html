@@ -179,7 +179,6 @@
       font-weight: bold;
     }
 
-    /* Bottom Fixed Audio Player */
     .player-bar {
       position: fixed;
       bottom: 0;
@@ -248,22 +247,21 @@
   </header>
 
   <div class="search-box">
-    <input type="text" id="searchInput" placeholder="Search song or artist..." value="Humsafar" />
+    <input type="text" id="searchInput" placeholder="Search song or artist..." value="Karan Aujla" />
     <button class="search-btn" onclick="handleSearch()">Search</button>
   </div>
 
   <div class="tags">
-    <div class="tag" onclick="quickSearch('Humsafar')">✨ Humsafar</div>
     <div class="tag" onclick="quickSearch('Karan Aujla')">🎤 Karan Aujla</div>
+    <div class="tag" onclick="quickSearch('Humsafar')">✨ Humsafar</div>
     <div class="tag" onclick="quickSearch('Supreme Shubh')">🔥 Supreme - Shubh</div>
     <div class="tag" onclick="quickSearch('Faded Alan Walker')">🎧 Faded - Alan Walker</div>
   </div>
 
-  <div id="status" class="status">Loading full tracks engine...</div>
+  <div id="status" class="status">Loading full tracks...</div>
 
   <div id="trackList" class="track-list"></div>
 
-  <!-- Bottom Player Container -->
   <div id="playerBar" class="player-bar">
     <div class="player-header">
       <img id="playerImg" src="" alt="Cover" />
@@ -308,10 +306,10 @@
       const query = searchInput.value.trim();
       if (!query) return;
 
-      status.textContent = 'Searching full songs...';
+      status.textContent = 'Searching full length songs...';
       trackList.innerHTML = '';
 
-      const songs = await fetchFullAudioSongs(query);
+      const songs = await searchMultiEngine(query);
 
       if (songs && songs.length > 0) {
         currentPlaylist = songs;
@@ -319,44 +317,42 @@
         status.textContent = `▶ Loaded ${songs.length} full songs. Tap to play:`;
         renderTracks();
       } else {
-        status.textContent = 'No tracks found. Try searching another song name.';
+        status.textContent = 'Unable to fetch stream right now. Try another query.';
       }
     }
 
-    // Direct Full Song API Fetcher
-    async function fetchFullAudioSongs(query) {
-      const encodedQuery = encodeURIComponent(query);
+    async function searchMultiEngine(query) {
+      const encoded = encodeURIComponent(query);
       
-      const apiUrls = [
-        `https://saavn.dev/api/search/songs?query=${encodedQuery}&limit=30`,
-        `https://jiosaavn-api-private-us.vercel.app/search/songs?query=${encodedQuery}&limit=30`
-      ];
-
-      for (const url of apiUrls) {
-        try {
-          // Use jsonp/proxy wrapper to completely prevent CORS blocks on GitHub Pages
-          const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
-          const res = await fetch(proxyUrl);
-          if (!res.ok) continue;
-
-          const data = await res.json();
-          const json = JSON.parse(data.contents);
-          const items = json?.data?.results || json?.results || json?.data || [];
-
-          if (Array.isArray(items) && items.length > 0) {
-            const parsed = parseSongs(items);
-            if (parsed.length > 0) return parsed;
-          }
-        } catch (e) {
-          console.warn('Mirror failed, switching backup...');
+      // Primary API Call
+      try {
+        const res = await fetch(`https://saavn.dev/api/search/songs?query=${encoded}&limit=25`);
+        if (res.ok) {
+          const json = await res.json();
+          const items = json?.data?.results || [];
+          if (items.length > 0) return parseSaavnData(items);
         }
+      } catch (e) {
+        console.warn('Primary fetch failed, using fallback endpoint...');
       }
+
+      // Secondary Backup Mirror
+      try {
+        const res = await fetch(`https://jiosaavn-api-private-us.vercel.app/search/songs?query=${encoded}&limit=25`);
+        if (res.ok) {
+          const json = await res.json();
+          const items = json?.data?.results || json?.results || [];
+          if (items.length > 0) return parseSaavnData(items);
+        }
+      } catch (e) {
+        console.warn('Backup fetch failed.');
+      }
+
       return [];
     }
 
-    function parseSongs(items) {
+    function parseSaavnData(items) {
       return items.map(item => {
-        // Image
         let img = '';
         if (Array.isArray(item.image)) {
           img = item.image[item.image.length - 1]?.url || item.image[0]?.url || '';
@@ -364,32 +360,28 @@
           img = item.image;
         }
 
-        // High Quality Audio Stream Link
-        let audio = '';
-        const dl = item.downloadUrl || item.download_url || item.media_url;
+        let audioUrl = '';
+        const dl = item.downloadUrl || item.download_url;
         if (Array.isArray(dl) && dl.length > 0) {
           const target = dl.find(d => d.quality === '320kbps') || dl.find(d => d.quality === '160kbps') || dl[dl.length - 1];
-          audio = target?.url || target?.link || (typeof target === 'string' ? target : '');
+          audioUrl = target?.url || target?.link || (typeof target === 'string' ? target : '');
         } else if (typeof dl === 'string') {
-          audio = dl;
+          audioUrl = dl;
         }
 
-        // Artist Name
         let artist = 'Artist';
         if (item.artists && Array.isArray(item.artists.primary) && item.artists.primary.length > 0) {
           artist = item.artists.primary.map(a => a.name).join(', ');
         } else if (item.primaryArtists) {
           artist = item.primaryArtists;
-        } else if (item.artist) {
-          artist = item.artist;
         }
 
         return {
           id: item.id || Math.random().toString(),
-          title: cleanHtml(item.name || item.title || 'Unknown Song'),
+          title: cleanHtml(item.name || item.title || 'Unknown Title'),
           artist: cleanHtml(artist),
           image: img || 'https://via.placeholder.com/150',
-          audio: audio
+          audio: audioUrl
         };
       }).filter(s => s.audio && s.audio.startsWith('http'));
     }
@@ -444,8 +436,8 @@
       return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
     }
 
-    // Run initial search
     handleSearch();
   </script>
 </body>
 </html>
+
