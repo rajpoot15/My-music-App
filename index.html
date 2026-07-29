@@ -25,7 +25,7 @@
       background-color: var(--bg);
       color: var(--text);
       padding: 16px;
-      padding-bottom: 140px;
+      padding-bottom: 220px;
       max-width: 600px;
       margin: 0 auto;
     }
@@ -144,8 +144,8 @@
     }
 
     .track-img {
-      width: 52px;
-      height: 52px;
+      width: 56px;
+      height: 56px;
       border-radius: 8px;
       object-fit: cover;
       background: #333;
@@ -179,7 +179,7 @@
       font-weight: bold;
     }
 
-    /* Sticky Bottom Player */
+    /* Fixed Bottom Player for YouTube */
     .player-bar {
       position: fixed;
       bottom: 0;
@@ -191,8 +191,10 @@
       display: none;
       flex-direction: column;
       gap: 10px;
-      box-shadow: 0 -6px 20px rgba(0,0,0,0.7);
+      box-shadow: 0 -6px 20px rgba(0,0,0,0.8);
       z-index: 100;
+      max-width: 600px;
+      margin: 0 auto;
     }
 
     .player-header {
@@ -226,15 +228,20 @@
       font-size: 0.78rem;
       color: var(--primary);
       margin-top: 2px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
     }
 
-    audio {
+    .iframe-wrapper {
       width: 100%;
-      height: 36px;
-      outline: none;
+      height: 120px;
+      border-radius: 10px;
+      overflow: hidden;
+      background: #000;
+    }
+
+    iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
     }
   </style>
 </head>
@@ -245,7 +252,7 @@
   </header>
 
   <div class="search-box">
-    <input type="text" id="searchInput" placeholder="Search song or artist..." value="Karan Aujla" />
+    <input type="text" id="searchInput" placeholder="Search YouTube music..." value="Karan Aujla" />
     <button class="search-btn" onclick="handleSearch()">Search</button>
   </div>
 
@@ -256,20 +263,22 @@
     <div class="tag" onclick="quickSearch('Sidhu Moosewala')">👑 Sidhu Moosewala</div>
   </div>
 
-  <div id="status" class="status">Connecting to music servers...</div>
+  <div id="status" class="status">Type a song and hit search.</div>
 
   <div id="trackList" class="track-list"></div>
 
-  <!-- Bottom Player -->
+  <!-- Bottom YouTube Player -->
   <div id="playerBar" class="player-bar">
     <div class="player-header">
       <img id="playerImg" src="" alt="Cover" />
       <div class="player-title-box">
         <div id="playerTitle" class="player-title">Track Name</div>
-        <div id="playerArtist" class="player-artist">Artist</div>
+        <div id="playerArtist" class="player-artist">🎤 Playing from YouTube</div>
       </div>
     </div>
-    <audio id="audioPlayer" controls></audio>
+    <div class="iframe-wrapper">
+      <iframe id="ytPlayer" allow="autoplay; encrypted-media"></iframe>
+    </div>
   </div>
 
   <script>
@@ -280,20 +289,12 @@
     const trackList = document.getElementById('trackList');
     const status = document.getElementById('status');
     const playerBar = document.getElementById('playerBar');
-    const audioPlayer = document.getElementById('audioPlayer');
+    const ytPlayer = document.getElementById('ytPlayer');
     const playerImg = document.getElementById('playerImg');
     const playerTitle = document.getElementById('playerTitle');
-    const playerArtist = document.getElementById('playerArtist');
 
     searchInput.addEventListener('keypress', (e) => {
       if (e.key === 'Enter') handleSearch();
-    });
-
-    audioPlayer.addEventListener('ended', () => {
-      if (currentIndex + 1 < currentPlaylist.length) {
-        currentIndex++;
-        playSongAtIndex(currentIndex);
-      }
     });
 
     function quickSearch(query) {
@@ -305,159 +306,56 @@
       const query = searchInput.value.trim();
       if (!query) return;
 
-      status.textContent = 'Searching music servers...';
+      status.textContent = 'Searching YouTube...';
       trackList.innerHTML = '';
 
-      const resData = await fetchSongs(query);
+      const songs = await fetchYouTubeSongs(query);
 
-      if (resData && resData.tracks && resData.tracks.length > 0) {
-        currentPlaylist = resData.tracks;
+      if (songs && songs.length > 0) {
+        currentPlaylist = songs;
         currentIndex = 0;
-        status.textContent = `▶ Loaded ${resData.tracks.length} tracks. Tap any song to play:`;
+        status.textContent = `▶ Found ${songs.length} YouTube tracks. Tap any track to play:`;
         renderTracks();
       } else {
-        status.textContent = 'No tracks found. Please try another search term.';
+        status.textContent = 'No tracks found. Try searching another song name.';
       }
     }
 
-    // Multi-Server Fetch with Anti-CORS Proxies & Fallbacks
-    async function fetchSongs(query) {
-      const cleanQuery = encodeURIComponent(query);
-
-      // Direct Saavn Endpoints
-      const saavnUrls = [
-        `https://saavn.dev/api/search/songs?query=${cleanQuery}&limit=25`,
-        `https://saavn.sumit.co/api/search/songs?query=${cleanQuery}&limit=25`,
-        `https://saavn.me/api/search/songs?query=${cleanQuery}&limit=25`
+    // High-Reliability YouTube Search Engine
+    async function fetchYouTubeSongs(query) {
+      const cleanQuery = encodeURIComponent(query + ' song');
+      
+      const servers = [
+        `https://inv.hostux.net/api/v1/search?q=${cleanQuery}&type=video`,
+        `https://invidious.nerdvpn.de/api/v1/search?q=${cleanQuery}&type=video`,
+        `https://vid.puffyan.us/api/v1/search?q=${cleanQuery}&type=video`,
+        `https://invidious.drgns.space/api/v1/search?q=${cleanQuery}&type=video`
       ];
 
-      // 1. Try Direct Requests
-      for (const url of saavnUrls) {
+      for (const url of servers) {
         try {
           const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 3500);
+          const timeout = setTimeout(() => controller.abort(), 3000);
           const res = await fetch(url, { signal: controller.signal });
           clearTimeout(timeout);
 
           if (!res.ok) continue;
-          const json = await res.json();
-          const items = json?.data?.results || json?.results || json?.data || [];
+          const items = await res.json();
 
           if (Array.isArray(items) && items.length > 0) {
-            const formatted = formatSaavnData(items);
-            if (formatted.length > 0) return { tracks: formatted };
+            return items.map(item => ({
+              id: item.videoId,
+              title: item.title,
+              artist: item.author || 'YouTube Music',
+              image: item.videoThumbnails?.find(t => t.quality === 'medium')?.url || `https://i.ytimg.com/vi/${item.videoId}/hqdefault.jpg`
+            })).filter(s => s.id);
           }
         } catch (e) {
-          console.warn('Direct fetch failed, trying next server...', url);
+          console.warn('YouTube server timeout, trying backup mirror...');
         }
       }
 
-      // 2. Try CORS-Bypassing Proxies
-      const proxiedUrls = [
-        `https://api.allorigins.win/get?url=${encodeURIComponent(`https://saavn.dev/api/search/songs?query=${cleanQuery}&limit=25`)}`,
-        `https://api.allorigins.win/get?url=${encodeURIComponent(`https://saavn.sumit.co/api/search/songs?query=${cleanQuery}&limit=25`)}`
-      ];
-
-      for (const url of proxiedUrls) {
-        try {
-          const res = await fetch(url);
-          if (!res.ok) continue;
-          const data = await res.json();
-          const json = JSON.parse(data.contents);
-          const items = json?.data?.results || json?.results || json?.data || [];
-
-          if (Array.isArray(items) && items.length > 0) {
-            const formatted = formatSaavnData(items);
-            if (formatted.length > 0) return { tracks: formatted };
-          }
-        } catch (e) {
-          console.warn('Proxy fetch failed...', e);
-        }
-      }
-
-      // 3. Last-Resort iTunes Music Fallback
-      try {
-        const itunesUrl = `https://itunes.apple.com/search?term=${cleanQuery}&media=music&limit=25`;
-        const res = await fetch(itunesUrl);
-        if (res.ok) {
-          const json = await res.json();
-          if (json.results && json.results.length > 0) {
-            const formatted = formatiTunesData(json.results);
-            return { tracks: formatted };
-          }
-        }
-      } catch (e) {
-        console.warn('iTunes fallback failed:', e);
-      }
-
-      return { tracks: [] };
-    }
-
-    function extractAudioUrl(item) {
-      let dl = item.downloadUrl || item.download_url || item.media_url;
-      if (Array.isArray(dl) && dl.length > 0) {
-        const target = dl.find(d => d.quality === '320kbps') || 
-                       dl.find(d => d.quality === '160kbps') || 
-                       dl[dl.length - 1];
-        if (target) {
-          return target.url || target.link || (typeof target === 'string' ? target : '');
-        }
-      }
-      if (typeof dl === 'string' && dl.startsWith('http')) return dl;
-      if (typeof item.url === 'string' && (item.url.includes('.mp3') || item.url.includes('.m4a'))) return item.url;
-      return '';
-    }
-
-    function extractArtistName(item) {
-      if (item.artists && Array.isArray(item.artists.primary) && item.artists.primary.length > 0) {
-        return item.artists.primary.map(a => a.name).join(', ');
-      }
-      if (item.artists && Array.isArray(item.artists.all) && item.artists.all.length > 0) {
-        return item.artists.all.map(a => a.name).join(', ');
-      }
-      if (typeof item.primaryArtists === 'string' && item.primaryArtists.trim() !== '') {
-        return item.primaryArtists;
-      }
-      if (typeof item.artist === 'string' && item.artist.trim() !== '') {
-        return item.artist;
-      }
-      if (item.subtitle && typeof item.subtitle === 'string' && item.subtitle.trim() !== '') {
-        return item.subtitle;
-      }
-      return 'Unknown Artist';
-    }
-
-    function formatSaavnData(items) {
-      return items.map(item => {
-        let img = '';
-        if (Array.isArray(item.image)) {
-          img = item.image[item.image.length - 1]?.url || item.image[0]?.url || '';
-        } else if (typeof item.image === 'string') {
-          img = item.image;
-        }
-
-        const audio = extractAudioUrl(item);
-        const rawTitle = item.name || item.title || 'Unknown Title';
-        const rawArtist = extractArtistName(item);
-
-        return {
-          id: item.id || Math.random().toString(),
-          title: cleanText(rawTitle),
-          artist: cleanText(rawArtist),
-          image: img || 'https://via.placeholder.com/150',
-          audio: audio
-        };
-      }).filter(s => s.audio);
-    }
-
-    function formatiTunesData(items) {
-      return items.map(item => ({
-        id: item.trackId || Math.random().toString(),
-        title: cleanText(item.trackName || 'Unknown Title'),
-        artist: cleanText(item.artistName || 'Unknown Artist'),
-        image: item.artworkUrl100 ? item.artworkUrl100.replace('100x100bb', '300x300bb') : 'https://via.placeholder.com/150',
-        audio: item.previewUrl || ''
-      })).filter(s => s.audio);
+      return [];
     }
 
     function renderTracks() {
@@ -491,26 +389,19 @@
 
       playerImg.src = song.image;
       playerTitle.textContent = song.title;
-      playerArtist.textContent = `🎤 ${song.artist}`;
-      audioPlayer.src = song.audio;
+      
+      // Embed YouTube Player with Autoplay
+      ytPlayer.src = `https://www.youtube-nocookie.com/embed/${song.id}?autoplay=1&enablejsapi=1`;
       playerBar.style.display = 'flex';
 
-      audioPlayer.play().catch(e => console.log('Autoplay error:', e));
       renderTracks();
-    }
-
-    function cleanText(str) {
-      if (!str) return '';
-      const txt = document.createElement('textarea');
-      txt.innerHTML = str;
-      return txt.value;
     }
 
     function escapeHtml(str) {
       return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
     }
 
-    // Initial Search
+    // Initial Search on Load
     handleSearch();
   </script>
 </body>
