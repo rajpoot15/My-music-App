@@ -8,6 +8,7 @@
     :root {
       --bg: #121212;
       --card: #1e1e1e;
+      --card-active: #282828;
       --primary: #1db954;
       --text: #ffffff;
       --subtext: #b3b3b3;
@@ -24,14 +25,14 @@
       background-color: var(--bg);
       color: var(--text);
       padding: 16px;
-      padding-bottom: 120px;
+      padding-bottom: 130px;
       max-width: 600px;
       margin: 0 auto;
     }
 
     header {
       text-align: center;
-      margin-bottom: 20px;
+      margin-bottom: 18px;
     }
 
     h1 {
@@ -46,7 +47,7 @@
     .search-box {
       display: flex;
       gap: 10px;
-      margin-bottom: 15px;
+      margin-bottom: 14px;
     }
 
     input[type="text"] {
@@ -79,8 +80,8 @@
       display: flex;
       gap: 8px;
       overflow-x: auto;
-      padding-bottom: 10px;
-      margin-bottom: 20px;
+      padding-bottom: 8px;
+      margin-bottom: 16px;
       scrollbar-width: none;
     }
 
@@ -107,14 +108,14 @@
     .status {
       text-align: center;
       color: var(--subtext);
-      margin: 30px 0;
-      font-size: 0.95rem;
+      margin: 15px 0 20px;
+      font-size: 0.9rem;
     }
 
     .track-list {
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: 10px;
     }
 
     .track-card {
@@ -125,11 +126,22 @@
       padding: 10px 14px;
       border-radius: 12px;
       cursor: pointer;
-      transition: background 0.2s;
+      border: 1px solid transparent;
+      transition: all 0.2s ease;
     }
 
     .track-card:hover {
-      background: #282828;
+      background: var(--card-active);
+    }
+
+    /* Highlight currently playing song */
+    .track-card.active {
+      background: #18281e;
+      border-color: var(--primary);
+    }
+
+    .track-card.active .track-title {
+      color: var(--primary);
     }
 
     .track-img {
@@ -162,9 +174,10 @@
       text-overflow: ellipsis;
     }
 
-    .play-icon {
+    .play-badge {
+      font-size: 0.8rem;
       color: var(--primary);
-      font-size: 1.2rem;
+      font-weight: bold;
     }
 
     /* Sticky Bottom Player */
@@ -179,7 +192,7 @@
       display: none;
       flex-direction: column;
       gap: 10px;
-      box-shadow: 0 -4px 20px rgba(0,0,0,0.5);
+      box-shadow: 0 -6px 20px rgba(0,0,0,0.7);
       z-index: 100;
     }
 
@@ -190,8 +203,8 @@
     }
 
     .player-header img {
-      width: 45px;
-      height: 45px;
+      width: 46px;
+      height: 46px;
       border-radius: 6px;
       object-fit: cover;
     }
@@ -207,11 +220,13 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      color: var(--text);
     }
 
     .player-artist {
       font-size: 0.75rem;
-      color: var(--subtext);
+      color: var(--primary);
+      margin-top: 2px;
     }
 
     audio {
@@ -228,18 +243,18 @@
   </header>
 
   <div class="search-box">
-    <input type="text" id="searchInput" placeholder="Search song or artist..." value="Supreme" />
+    <input type="text" id="searchInput" placeholder="Search song or artist..." value="Supreme Shubh" />
     <button class="search-btn" onclick="handleSearch()">Search</button>
   </div>
 
   <div class="tags">
     <div class="tag" onclick="quickSearch('Supreme Shubh')">🔥 Supreme - Shubh</div>
     <div class="tag" onclick="quickSearch('Karan Aujla')">🎤 Karan Aujla</div>
-    <div class="tag" onclick="quickSearch('Sidhu Moose Wala')">👑 Sidhu Moosewala</div>
+    <div class="tag" onclick="quickSearch('Sidhu Moosewala')">👑 Sidhu Moosewala</div>
     <div class="tag" onclick="quickSearch('Softly Ikky')">🎶 Softly - Karan Aujla</div>
   </div>
 
-  <div id="status" class="status">Tap search or select a tag to find music.</div>
+  <div id="status" class="status">Tap search or select a tag to start your playlist.</div>
 
   <div id="trackList" class="track-list"></div>
 
@@ -252,10 +267,15 @@
         <div id="playerArtist" class="player-artist">Artist</div>
       </div>
     </div>
-    <audio id="audioPlayer" controls autoplay></audio>
+    <audio id="audioPlayer" controls></audio>
   </div>
 
   <script>
+    // State management
+    let currentPlaylist = [];
+    let currentIndex = 0;
+    let isFetchingRecommendations = false;
+
     const searchInput = document.getElementById('searchInput');
     const trackList = document.getElementById('trackList');
     const status = document.getElementById('status');
@@ -265,9 +285,29 @@
     const playerTitle = document.getElementById('playerTitle');
     const playerArtist = document.getElementById('playerArtist');
 
-    // Automatically search on Enter key
+    // Handle Enter keypress
     searchInput.addEventListener('keypress', (e) => {
       if (e.key === 'Enter') handleSearch();
+    });
+
+    // 1. AUTO-PLAY NEXT TRACK WHEN CURRENT SONG ENDS
+    audioPlayer.addEventListener('ended', async () => {
+      if (currentIndex + 1 < currentPlaylist.length) {
+        // Play next song in queue
+        currentIndex++;
+        playSongAtIndex(currentIndex);
+      } else {
+        // Reached end of current list -> Auto-generate "Milte Julte Songs" (Spotify Radio)
+        status.textContent = '✨ Generating similar songs for autoplay...';
+        await loadSimilarSongs(currentPlaylist[currentIndex]);
+        
+        if (currentIndex + 1 < currentPlaylist.length) {
+          currentIndex++;
+          playSongAtIndex(currentIndex);
+        } else {
+          status.textContent = 'Playlist completed.';
+        }
+      }
     });
 
     function quickSearch(query) {
@@ -285,21 +325,22 @@
       const songs = await fetchSongs(query);
 
       if (songs && songs.length > 0) {
-        status.textContent = `Found ${songs.length} tracks. Tap any track to play:`;
-        renderTracks(songs);
+        currentPlaylist = songs;
+        currentIndex = 0;
+        status.textContent = `▶ Loaded ${songs.length} tracks. Tap any track to play:`;
+        renderTracks();
       } else {
-        status.textContent = 'No tracks found. Try searching another song or artist.';
+        status.textContent = 'No tracks found. Try another search.';
       }
     }
 
-    // Multi-Server API Fetcher (JioSaavn + iTunes Fallback)
+    // Multi-Server API Fetcher
     async function fetchSongs(query) {
       const endpoints = [
         `https://saavn.dev/api/search/songs?query=${encodeURIComponent(query)}`,
         `https://saavn.sumit.co/api/search/songs?query=${encodeURIComponent(query)}`
       ];
 
-      // Try JioSaavn High-Quality APIs
       for (const url of endpoints) {
         try {
           const res = await fetch(url);
@@ -308,43 +349,21 @@
           const items = json?.data?.results || json?.results || [];
 
           if (items.length > 0) {
-            return items.map(item => {
-              // Extract highest quality image
-              let img = '';
-              if (Array.isArray(item.image)) {
-                img = item.image[item.image.length - 1]?.url || item.image[0]?.url || '';
-              } else if (typeof item.image === 'string') {
-                img = item.image;
-              }
-
-              // Extract audio download/stream URL
-              let audio = '';
-              if (Array.isArray(item.downloadUrl)) {
-                audio = item.downloadUrl[item.downloadUrl.length - 1]?.url || item.downloadUrl[0]?.url || '';
-              } else if (typeof item.url === 'string') {
-                audio = item.url;
-              }
-
-              return {
-                title: item.name || item.title || 'Unknown Title',
-                artist: item.primaryArtists || item.artist || 'Unknown Artist',
-                image: img || 'https://via.placeholder.com/150',
-                audio: audio
-              };
-            }).filter(song => song.audio);
+            return formatSongsData(items);
           }
         } catch (e) {
           console.warn('API Endpoint failed, trying next...', e);
         }
       }
 
-      // Fallback to iTunes API if primary servers are unreachable
+      // iTunes Fallback
       try {
         const itunesRes = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(query)}&media=music&limit=15`);
         if (itunesRes.ok) {
           const itunesData = await itunesRes.json();
           if (itunesData.results && itunesData.results.length > 0) {
             return itunesData.results.map(item => ({
+              id: item.trackId,
               title: item.trackName,
               artist: item.artistName,
               image: item.artworkUrl100?.replace('100x100bb', '300x300bb') || '',
@@ -352,46 +371,128 @@
             }));
           }
         }
-      } catch (e) {
-        console.error('iTunes fallback failed:', e);
-      }
+      } catch (e) {}
 
       return [];
     }
 
-    function renderTracks(songs) {
+    // 2. SPOTIFY-LIKE "MILTE JULTE SONG" RECOMMENDATION GENERATOR
+    async function loadSimilarSongs(currentSong) {
+      if (isFetchingRecommendations || !currentSong) return;
+      isFetchingRecommendations = true;
+
+      try {
+        // Try song recommendations API by Song ID
+        if (currentSong.id) {
+          const recUrl = `https://saavn.dev/api/songs/${currentSong.id}/suggestions?limit=10`;
+          const res = await fetch(recUrl);
+          if (res.ok) {
+            const json = await res.json();
+            const recs = json?.data || [];
+            if (recs.length > 0) {
+              appendNewUniqueSongs(formatSongsData(recs));
+              isFetchingRecommendations = false;
+              return;
+            }
+          }
+        }
+
+        // Fallback: Fetch more tracks by primary artist name
+        const primaryArtist = currentSong.artist.split(/[,&]/)[0].trim();
+        const artistSongs = await fetchSongs(primaryArtist);
+        if (artistSongs.length > 0) {
+          appendNewUniqueSongs(artistSongs);
+        }
+      } catch (e) {
+        console.warn('Failed to load similar songs:', e);
+      }
+      
+      isFetchingRecommendations = false;
+    }
+
+    function formatSongsData(items) {
+      return items.map(item => {
+        let img = '';
+        if (Array.isArray(item.image)) {
+          img = item.image[item.image.length - 1]?.url || item.image[0]?.url || '';
+        } else if (typeof item.image === 'string') {
+          img = item.image;
+        }
+
+        let audio = '';
+        if (Array.isArray(item.downloadUrl)) {
+          audio = item.downloadUrl[item.downloadUrl.length - 1]?.url || item.downloadUrl[0]?.url || '';
+        } else if (typeof item.url === 'string') {
+          audio = item.url;
+        }
+
+        return {
+          id: item.id || '',
+          title: item.name || item.title || 'Unknown Title',
+          artist: item.primaryArtists || item.artist || 'Unknown Artist',
+          image: img || 'https://via.placeholder.com/150',
+          audio: audio
+        };
+      }).filter(s => s.audio);
+    }
+
+    function appendNewUniqueSongs(newSongs) {
+      const existingTitles = new Set(currentPlaylist.map(s => s.title.toLowerCase()));
+      const uniqueNewSongs = newSongs.filter(s => !existingTitles.has(s.title.toLowerCase()));
+
+      if (uniqueNewSongs.length > 0) {
+        currentPlaylist = [...currentPlaylist, ...uniqueNewSongs];
+        renderTracks();
+        status.textContent = `✨ Added ${uniqueNewSongs.length} similar songs to your queue!`;
+      }
+    }
+
+    function renderTracks() {
       trackList.innerHTML = '';
-      songs.forEach(song => {
+      currentPlaylist.forEach((song, index) => {
         const card = document.createElement('div');
-        card.className = 'track-card';
+        const isActive = index === currentIndex;
+        card.className = `track-card ${isActive ? 'active' : ''}`;
+        
         card.innerHTML = `
           <img class="track-img" src="${song.image}" alt="${song.title}" />
           <div class="track-info">
             <div class="track-title">${escapeHtml(song.title)}</div>
             <div class="track-artist">${escapeHtml(song.artist)}</div>
           </div>
-          <div class="play-icon">▶</div>
+          <div class="play-badge">${isActive ? '🔊 PLAYING' : '▶'}</div>
         `;
 
-        card.onclick = () => playSong(song);
+        card.onclick = () => {
+          currentIndex = index;
+          playSongAtIndex(currentIndex);
+          // Automatically pull similar songs in background when a song is tapped
+          loadSimilarSongs(song);
+        };
+
         trackList.appendChild(card);
       });
     }
 
-    function playSong(song) {
+    function playSongAtIndex(index) {
+      const song = currentPlaylist[index];
+      if (!song) return;
+
       playerImg.src = song.image;
       playerTitle.textContent = song.title;
-      playerArtist.textContent = song.artist;
+      playerArtist.textContent = `▶ ${song.artist}`;
       audioPlayer.src = song.audio;
       playerBar.style.display = 'flex';
-      audioPlayer.play().catch(e => console.log('Autoplay prevented:', e));
+
+      audioPlayer.play().catch(e => console.log('Autoplay policy error:', e));
+      renderTracks(); // Update active highlight ring
     }
 
     function escapeHtml(str) {
       return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
     }
 
-    // Auto load initial search on start
+    // Initial search load
     handleSearch();
   </script>
 </body>
