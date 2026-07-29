@@ -8,7 +8,6 @@
     :root {
       --bg: #121212;
       --card: #1e1e1e;
-      --card-active: #282828;
       --primary: #1db954;
       --text: #ffffff;
       --subtext: #b3b3b3;
@@ -25,7 +24,7 @@
       background-color: var(--bg);
       color: var(--text);
       padding: 16px;
-      padding-bottom: 170px;
+      padding-bottom: 180px;
       max-width: 600px;
       margin: 0 auto;
     }
@@ -173,6 +172,22 @@
       border-radius: 6px;
     }
 
+    .controls {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .btn-next {
+      background: var(--primary);
+      color: #000;
+      border: none;
+      padding: 6px 14px;
+      border-radius: 15px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
     audio {
       width: 100%;
       height: 40px;
@@ -203,12 +218,13 @@
   <div id="playerBar" class="player-bar">
     <div class="player-header">
       <img id="playerImg" src="" alt="Cover" />
-      <div>
+      <div style="flex:1;">
         <div id="playerTitle" style="font-weight: bold; font-size: 0.9rem;"></div>
         <div id="playerArtist" style="color: var(--primary); font-size: 0.8rem;"></div>
       </div>
+      <button class="btn-next" onclick="playNext()">Next ⏭</button>
     </div>
-    <audio id="audioPlayer" controls autoplay></audio>
+    <audio id="audioPlayer" controls></audio>
   </div>
 
   <script>
@@ -224,6 +240,11 @@
     const playerTitle = document.getElementById('playerTitle');
     const playerArtist = document.getElementById('playerArtist');
 
+    // Automatically trigger next song when current track ends
+    audioPlayer.addEventListener('ended', () => {
+      playNext();
+    });
+
     function quickSearch(query) {
       searchInput.value = query;
       handleSearch();
@@ -237,7 +258,6 @@
       trackList.innerHTML = '';
 
       try {
-        // Official iTunes API - NEVER blocked by CORS on GitHub Pages
         const res = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(query)}&media=music&limit=25`);
         const data = await res.json();
 
@@ -289,11 +309,19 @@
       playerImg.src = song.image;
       playerTitle.textContent = song.title;
       playerArtist.textContent = song.artist;
+      
       audioPlayer.src = song.audio;
       playerBar.style.display = 'flex';
 
-      audioPlayer.play();
+      // Promise catch prevents mobile browser silence/crash
+      audioPlayer.play().catch(e => console.log("Autoplay blocked:", e));
       renderTracks();
+    }
+
+    function playNext() {
+      if (currentPlaylist.length === 0) return;
+      currentIndex = (currentIndex + 1) % currentPlaylist.length;
+      playSong(currentIndex);
     }
 
     handleSearch();
