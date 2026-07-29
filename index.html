@@ -6,8 +6,13 @@
   <title>My Mobile Music Player</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #121212; color: #fff; padding: 16px; padding-bottom: 110px; }
-    h1 { margin-bottom: 16px; font-size: 22px; text-align: center; color: #1db954; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #121212; color: #fff; padding: 16px; padding-bottom: 120px; }
+    h1 { margin-bottom: 12px; font-size: 22px; text-align: center; color: #1db954; }
+    
+    .search-box { display: flex; gap: 8px; margin-bottom: 16px; }
+    .search-box input { flex: 1; padding: 10px 14px; border-radius: 20px; border: none; background: #282828; color: #fff; font-size: 14px; outline: none; }
+    .search-box button { padding: 10px 18px; border-radius: 20px; border: none; background: #1db954; color: #000; font-weight: bold; cursor: pointer; }
+
     .track-list { display: flex; flex-direction: column; gap: 10px; }
     .track-card { display: flex; align-items: center; gap: 12px; background: #1e1e1e; padding: 10px; border-radius: 8px; cursor: pointer; }
     .track-card:active { background: #282828; }
@@ -15,6 +20,7 @@
     .track-info { flex: 1; min-width: 0; }
     .track-title { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .track-artist { font-size: 12px; color: #aaa; margin-top: 2px; }
+    
     .player-bar { position: fixed; bottom: 0; left: 0; right: 0; background: #181818; border-top: 1px solid #282828; padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 -4px 12px rgba(0,0,0,0.5); }
     .now-playing { font-size: 13px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #1db954; font-weight: 500; }
     audio { width: 100%; height: 36px; border-radius: 20px; outline: none; }
@@ -22,6 +28,12 @@
 </head>
 <body>
   <h1>🎵 My Music Player</h1>
+
+  <div class="search-box">
+    <input type="text" id="searchInput" placeholder="Search songs or artists...">
+    <button onclick="searchMusic()">Search</button>
+  </div>
+
   <div id="tracks" class="track-list">Loading tracks...</div>
 
   <div class="player-bar">
@@ -30,40 +42,59 @@
   </div>
 
   <script>
-    const API_URL = 'https://api.jamendo.com/v3.0/tracks/?client_id=56b4128d&format=json&limit=15&order=popularity_month';
     const tracksContainer = document.getElementById('tracks');
     const audioPlayer = document.getElementById('audioPlayer');
     const nowPlaying = document.getElementById('nowPlaying');
+    const searchInput = document.getElementById('searchInput');
 
-    async function fetchMusic() {
+    async function searchMusic(query = null) {
+      const searchTerm = query || searchInput.value.trim() || 'Top Songs';
+      tracksContainer.innerHTML = '<p style="text-align:center; color:#aaa;">Searching tracks...</p>';
+
       try {
-        const response = await fetch(API_URL);
+        const url = `https://itunes.apple.com/search?term=${encodeURIComponent(searchTerm)}&media=music&limit=15`;
+        const response = await fetch(url);
         const data = await response.json();
-        tracksContainer.innerHTML = '';
 
+        if (!data.results || data.results.length === 0) {
+          tracksContainer.innerHTML = '<p style="text-align:center; color:#aaa;">No tracks found. Try another search!</p>';
+          return;
+        }
+
+        tracksContainer.innerHTML = '';
         data.results.forEach(track => {
+          if (!track.previewUrl) return;
+
           const card = document.createElement('div');
           card.className = 'track-card';
+          const artwork = track.artworkUrl100 || track.artworkUrl60;
+          
           card.innerHTML = `
-            <img src="${track.image}" alt="${track.name}">
+            <img src="${artwork}" alt="${track.trackName}">
             <div class="track-info">
-              <div class="track-title">${track.name}</div>
-              <div class="track-artist">${track.artist_name}</div>
+              <div class="track-title">${track.trackName}</div>
+              <div class="track-artist">${track.artistName}</div>
             </div>
           `;
           card.onclick = () => {
-            audioPlayer.src = track.audio;
+            audioPlayer.src = track.previewUrl;
             audioPlayer.play();
-            nowPlaying.textContent = `▶ ${track.name} - ${track.artist_name}`;
+            nowPlaying.textContent = `▶ ${track.trackName} - ${track.artistName}`;
           };
           tracksContainer.appendChild(card);
         });
       } catch (err) {
-        tracksContainer.innerHTML = '<p style="color:#ff5555; text-align:center;">Failed to load music. Try refreshing.</p>';
+        tracksContainer.innerHTML = '<p style="color:#ff5555; text-align:center;">Failed to load tracks. Please check internet connection.</p>';
       }
     }
 
-    fetchMusic();
+    // Allow pressing Enter in search box
+    searchInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') searchMusic();
+    });
+
+    // Load initial music on page load
+    searchMusic('Popular Hits');
   </script>
 </body>
 </html>
