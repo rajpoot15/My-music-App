@@ -25,7 +25,7 @@
       background-color: var(--bg);
       color: var(--text);
       padding: 16px;
-      padding-bottom: 160px;
+      padding-bottom: 170px;
       max-width: 600px;
       margin: 0 auto;
     }
@@ -248,22 +248,22 @@
   </header>
 
   <div class="search-box">
-    <input type="text" id="searchInput" placeholder="Search song or artist..." value="Humsafar" />
+    <input type="text" id="searchInput" placeholder="Search song or artist..." value="Karan Aujla" />
     <button class="search-btn" onclick="handleSearch()">Search</button>
   </div>
 
   <div class="tags">
-    <div class="tag" onclick="quickSearch('Humsafar')">✨ Humsafar</div>
     <div class="tag" onclick="quickSearch('Karan Aujla')">🎤 Karan Aujla</div>
+    <div class="tag" onclick="quickSearch('Humsafar')">✨ Humsafar</div>
     <div class="tag" onclick="quickSearch('Supreme Shubh')">🔥 Supreme - Shubh</div>
     <div class="tag" onclick="quickSearch('Faded Alan Walker')">🎧 Faded - Alan Walker</div>
   </div>
 
-  <div id="status" class="status">Connecting to music player...</div>
+  <div id="status" class="status">Connecting to full song servers...</div>
 
   <div id="trackList" class="track-list"></div>
 
-  <!-- Bottom Clean Audio Player -->
+  <!-- Bottom Player Container -->
   <div id="playerBar" class="player-bar">
     <div class="player-header">
       <img id="playerImg" src="" alt="Cover" />
@@ -278,6 +278,15 @@
   <script>
     let currentPlaylist = [];
     let currentIndex = 0;
+
+    const PIPED_INSTANCES = [
+      'https://pipedapi.kavin.rocks',
+      'https://pipedapi.adminforge.de',
+      'https://api.piped.yt',
+      'https://pipedapi.drgns.space'
+    ];
+
+    let workingInstance = PIPED_INSTANCES[0];
 
     const searchInput = document.getElementById('searchInput');
     const trackList = document.getElementById('trackList');
@@ -308,40 +317,48 @@
       const query = searchInput.value.trim();
       if (!query) return;
 
-      status.textContent = 'Searching tracks...';
+      status.textContent = 'Searching full length songs...';
       trackList.innerHTML = '';
 
-      const songs = await fetchUnblockedSongs(query);
+      const songs = await searchFullSongs(query);
 
       if (songs && songs.length > 0) {
         currentPlaylist = songs;
         currentIndex = 0;
-        status.textContent = `▶ Loaded ${songs.length} playable tracks. Tap any song:`;
+        status.textContent = `▶ Loaded ${songs.length} full tracks. Tap any song:`;
         renderTracks();
       } else {
-        status.textContent = 'No playable tracks found. Try another query.';
+        status.textContent = 'No full tracks found. Please try another search.';
       }
     }
 
-    // Direct Unblocked Audio Search via Apple iTunes Engine
-    async function fetchUnblockedSongs(query) {
-      try {
-        const url = `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&media=music&entity=song&limit=30`;
-        const res = await fetch(url);
-        if (!res.ok) return [];
-        const json = await res.json();
+    async function searchFullSongs(query) {
+      for (const instance of PIPED_INSTANCES) {
+        try {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 4000);
+          const url = `${instance}/search?q=${encodeURIComponent(query + " song")}&filter=music_songs`;
+          const res = await fetch(url, { signal: controller.signal });
+          clearTimeout(timeout);
 
-        if (json.results && json.results.length > 0) {
-          return json.results.map(item => ({
-            id: item.trackId,
-            title: item.trackName || 'Unknown Title',
-            artist: item.artistName || 'Unknown Artist',
-            image: item.artworkUrl100 ? item.artworkUrl100.replace('100x100bb', '300x300bb') : 'https://via.placeholder.com/150',
-            audio: item.previewUrl
-          })).filter(s => s.audio);
+          if (!res.ok) continue;
+          const data = await res.json();
+
+          if (data.items && data.items.length > 0) {
+            workingInstance = instance;
+            return data.items.map(item => {
+              const videoId = item.url ? item.url.replace('/watch?v=', '') : '';
+              return {
+                id: videoId,
+                title: cleanTitle(item.title || 'Unknown Title'),
+                artist: item.uploaderName || 'Artist',
+                image: item.thumbnail || 'https://via.placeholder.com/150'
+              };
+            }).filter(item => item.id);
+          }
+        } catch (e) {
+          console.warn('Instance failed, trying backup server...');
         }
-      } catch (e) {
-        console.error('Fetch error:', e);
       }
       return [];
     }
@@ -371,26 +388,60 @@
       });
     }
 
-    function playSongAtIndex(index) {
+    async function playSongAtIndex(index) {
       const song = currentPlaylist[index];
       if (!song) return;
 
       playerImg.src = song.image;
       playerTitle.textContent = song.title;
       playerArtist.textContent = `🎤 ${song.artist}`;
-      
-      audioPlayer.src = song.audio;
       playerBar.style.display = 'flex';
-
-      audioPlayer.play().catch(err => console.log('Playback error:', err));
       renderTracks();
+
+      status.textContent = 'Extracting full audio stream...';
+
+      const audioUrl = await fetchAudioStream(song.id);
+      if (audioUrl) {
+        audioPlayer.src = audioUrl;
+        audioPlayer.play().catch(err => console.log('Autoplay handled:', err));
+        status.textContent = `▶ Playing full song: ${song.title}`;
+      } else {
+        status.textContent = 'Failed to load audio for this song. Try another.';
+      }
+    }
+
+    async function fetchAudioStream(videoId) {
+      for (const instance of [workingInstance, ...PIPED_INSTANCES]) {
+        try {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 4000);
+          const res = await fetch(`${instance}/streams/${videoId}`, { signal: controller.signal });
+          clearTimeout(timeout);
+
+          if (!res.ok) continue;
+          const data = await res.json();
+
+          if (data.audioStreams && data.audioStreams.length > 0) {
+            // Pick highest quality audio stream (.m4a / .webm)
+            const stream = data.audioStreams.find(s => s.mimeType.includes('audio/mp4')) || data.audioStreams[0];
+            return stream.url;
+          }
+        } catch (e) {
+          console.warn('Audio stream extraction retry...');
+        }
+      }
+      return null;
+    }
+
+    function cleanTitle(title) {
+      return title.replace(/\(Official Video\)|\(Official Audio\)|\(Lyric Video\)|\[Official Video\]/gi, '').trim();
     }
 
     function escapeHtml(str) {
       return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
     }
 
-    // Initial search
+    // Auto search on page load
     handleSearch();
   </script>
 </body>
