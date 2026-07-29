@@ -18,7 +18,7 @@
       box-sizing: border-box;
       margin: 0;
       padding: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
 
     body {
@@ -38,10 +38,6 @@
     h1 {
       color: var(--primary);
       font-size: 1.8rem;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
     }
 
     .search-box {
@@ -85,10 +81,6 @@
       scrollbar-width: none;
     }
 
-    .tags::-webkit-scrollbar {
-      display: none;
-    }
-
     .tag {
       background: var(--card);
       border: 1px solid #333;
@@ -98,11 +90,6 @@
       white-space: nowrap;
       font-size: 0.85rem;
       cursor: pointer;
-    }
-
-    .tag:hover {
-      border-color: var(--primary);
-      color: var(--text);
     }
 
     .status {
@@ -126,21 +113,11 @@
       padding: 10px 14px;
       border-radius: 12px;
       cursor: pointer;
-      border: 1px solid transparent;
-      transition: all 0.2s ease;
-    }
-
-    .track-card:hover {
-      background: var(--card-active);
     }
 
     .track-card.active {
       background: #18281e;
-      border-color: var(--primary);
-    }
-
-    .track-card.active .track-title {
-      color: var(--primary);
+      border: 1px solid var(--primary);
     }
 
     .track-img {
@@ -148,7 +125,6 @@
       height: 54px;
       border-radius: 8px;
       object-fit: cover;
-      background: #333;
     }
 
     .track-info {
@@ -168,15 +144,6 @@
       font-size: 0.82rem;
       color: var(--subtext);
       margin-top: 4px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .play-badge {
-      font-size: 0.8rem;
-      color: var(--primary);
-      font-weight: bold;
     }
 
     .player-bar {
@@ -190,8 +157,6 @@
       display: none;
       flex-direction: column;
       gap: 10px;
-      box-shadow: 0 -6px 20px rgba(0,0,0,0.8);
-      z-index: 100;
       max-width: 600px;
       margin: 0 auto;
     }
@@ -206,37 +171,11 @@
       width: 48px;
       height: 48px;
       border-radius: 6px;
-      object-fit: cover;
-    }
-
-    .player-title-box {
-      flex: 1;
-      overflow: hidden;
-    }
-
-    .player-title {
-      font-size: 0.9rem;
-      font-weight: 600;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      color: var(--text);
-    }
-
-    .player-artist {
-      font-size: 0.78rem;
-      color: var(--primary);
-      margin-top: 2px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
     }
 
     audio {
       width: 100%;
       height: 40px;
-      outline: none;
-      border-radius: 8px;
     }
   </style>
 </head>
@@ -254,20 +193,19 @@
   <div class="tags">
     <div class="tag" onclick="quickSearch('Karan Aujla')">🎤 Karan Aujla</div>
     <div class="tag" onclick="quickSearch('Humsafar')">✨ Humsafar</div>
-    <div class="tag" onclick="quickSearch('Supreme Shubh')">🔥 Supreme - Shubh</div>
-    <div class="tag" onclick="quickSearch('Faded Alan Walker')">🎧 Faded - Alan Walker</div>
+    <div class="tag" onclick="quickSearch('Shubh')">🔥 Shubh</div>
   </div>
 
-  <div id="status" class="status">Loading full tracks...</div>
+  <div id="status" class="status">Initializing player...</div>
 
   <div id="trackList" class="track-list"></div>
 
   <div id="playerBar" class="player-bar">
     <div class="player-header">
       <img id="playerImg" src="" alt="Cover" />
-      <div class="player-title-box">
-        <div id="playerTitle" class="player-title">Track Name</div>
-        <div id="playerArtist" class="player-artist">Artist</div>
+      <div>
+        <div id="playerTitle" style="font-weight: bold; font-size: 0.9rem;"></div>
+        <div id="playerArtist" style="color: var(--primary); font-size: 0.8rem;"></div>
       </div>
     </div>
     <audio id="audioPlayer" controls autoplay></audio>
@@ -286,17 +224,6 @@
     const playerTitle = document.getElementById('playerTitle');
     const playerArtist = document.getElementById('playerArtist');
 
-    searchInput.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') handleSearch();
-    });
-
-    audioPlayer.addEventListener('ended', () => {
-      if (currentIndex + 1 < currentPlaylist.length) {
-        currentIndex++;
-        playSongAtIndex(currentIndex);
-      }
-    });
-
     function quickSearch(query) {
       searchInput.value = query;
       handleSearch();
@@ -306,138 +233,70 @@
       const query = searchInput.value.trim();
       if (!query) return;
 
-      status.textContent = 'Searching full length songs...';
+      status.textContent = 'Searching...';
       trackList.innerHTML = '';
 
-      const songs = await searchMultiEngine(query);
-
-      if (songs && songs.length > 0) {
-        currentPlaylist = songs;
-        currentIndex = 0;
-        status.textContent = `▶ Loaded ${songs.length} full songs. Tap to play:`;
-        renderTracks();
-      } else {
-        status.textContent = 'Unable to fetch stream right now. Try another query.';
-      }
-    }
-
-    async function searchMultiEngine(query) {
-      const encoded = encodeURIComponent(query);
-      
-      // Primary API Call
       try {
-        const res = await fetch(`https://saavn.dev/api/search/songs?query=${encoded}&limit=25`);
-        if (res.ok) {
-          const json = await res.json();
-          const items = json?.data?.results || [];
-          if (items.length > 0) return parseSaavnData(items);
+        // Official iTunes API - NEVER blocked by CORS on GitHub Pages
+        const res = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(query)}&media=music&limit=25`);
+        const data = await res.json();
+
+        if (data.results && data.results.length > 0) {
+          currentPlaylist = data.results.map(item => ({
+            title: item.trackName || 'Unknown Track',
+            artist: item.artistName || 'Unknown Artist',
+            image: item.artworkUrl100.replace('100x100bb', '300x300bb'),
+            audio: item.previewUrl
+          }));
+
+          status.textContent = `Found ${currentPlaylist.length} tracks! Tap any to play:`;
+          renderTracks();
+        } else {
+          status.textContent = 'No tracks found for this search.';
         }
       } catch (e) {
-        console.warn('Primary fetch failed, using fallback endpoint...');
+        status.textContent = 'Network error. Please check your connection.';
       }
-
-      // Secondary Backup Mirror
-      try {
-        const res = await fetch(`https://jiosaavn-api-private-us.vercel.app/search/songs?query=${encoded}&limit=25`);
-        if (res.ok) {
-          const json = await res.json();
-          const items = json?.data?.results || json?.results || [];
-          if (items.length > 0) return parseSaavnData(items);
-        }
-      } catch (e) {
-        console.warn('Backup fetch failed.');
-      }
-
-      return [];
-    }
-
-    function parseSaavnData(items) {
-      return items.map(item => {
-        let img = '';
-        if (Array.isArray(item.image)) {
-          img = item.image[item.image.length - 1]?.url || item.image[0]?.url || '';
-        } else if (typeof item.image === 'string') {
-          img = item.image;
-        }
-
-        let audioUrl = '';
-        const dl = item.downloadUrl || item.download_url;
-        if (Array.isArray(dl) && dl.length > 0) {
-          const target = dl.find(d => d.quality === '320kbps') || dl.find(d => d.quality === '160kbps') || dl[dl.length - 1];
-          audioUrl = target?.url || target?.link || (typeof target === 'string' ? target : '');
-        } else if (typeof dl === 'string') {
-          audioUrl = dl;
-        }
-
-        let artist = 'Artist';
-        if (item.artists && Array.isArray(item.artists.primary) && item.artists.primary.length > 0) {
-          artist = item.artists.primary.map(a => a.name).join(', ');
-        } else if (item.primaryArtists) {
-          artist = item.primaryArtists;
-        }
-
-        return {
-          id: item.id || Math.random().toString(),
-          title: cleanHtml(item.name || item.title || 'Unknown Title'),
-          artist: cleanHtml(artist),
-          image: img || 'https://via.placeholder.com/150',
-          audio: audioUrl
-        };
-      }).filter(s => s.audio && s.audio.startsWith('http'));
     }
 
     function renderTracks() {
       trackList.innerHTML = '';
       currentPlaylist.forEach((song, index) => {
         const card = document.createElement('div');
-        const isActive = index === currentIndex;
-        card.className = `track-card ${isActive ? 'active' : ''}`;
+        card.className = `track-card ${index === currentIndex ? 'active' : ''}`;
         
         card.innerHTML = `
-          <img class="track-img" src="${song.image}" alt="${song.title}" />
+          <img class="track-img" src="${song.image}" />
           <div class="track-info">
-            <div class="track-title">${escapeHtml(song.title)}</div>
-            <div class="track-artist">👤 ${escapeHtml(song.artist)}</div>
+            <div class="track-title">${song.title}</div>
+            <div class="track-artist">🎤 ${song.artist}</div>
           </div>
-          <div class="play-badge">${isActive ? '🔊 PLAYING' : '▶'}</div>
         `;
 
         card.onclick = () => {
           currentIndex = index;
-          playSongAtIndex(currentIndex);
+          playSong(index);
         };
 
         trackList.appendChild(card);
       });
     }
 
-    function playSongAtIndex(index) {
+    function playSong(index) {
       const song = currentPlaylist[index];
       if (!song) return;
 
       playerImg.src = song.image;
       playerTitle.textContent = song.title;
-      playerArtist.textContent = `🎤 ${song.artist}`;
-      
+      playerArtist.textContent = song.artist;
       audioPlayer.src = song.audio;
       playerBar.style.display = 'flex';
 
-      audioPlayer.play().catch(err => console.log('Autoplay handled:', err));
+      audioPlayer.play();
       renderTracks();
-    }
-
-    function cleanHtml(str) {
-      if (!str) return '';
-      const doc = new DOMParser().parseFromString(str, 'text/html');
-      return doc.body.textContent || str;
-    }
-
-    function escapeHtml(str) {
-      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
     }
 
     handleSearch();
   </script>
 </body>
 </html>
-
