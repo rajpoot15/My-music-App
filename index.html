@@ -179,7 +179,7 @@
       font-weight: bold;
     }
 
-    /* Fixed Bottom Player for YouTube */
+    /* Fixed Bottom Player Container */
     .player-bar {
       position: fixed;
       bottom: 0;
@@ -228,20 +228,22 @@
       font-size: 0.78rem;
       color: var(--primary);
       margin-top: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
-    .iframe-wrapper {
+    .yt-wrapper {
       width: 100%;
-      height: 120px;
-      border-radius: 10px;
+      height: 100px;
+      border-radius: 8px;
       overflow: hidden;
       background: #000;
     }
 
-    iframe {
+    #yt-player-container {
       width: 100%;
       height: 100%;
-      border: none;
     }
   </style>
 </head>
@@ -252,7 +254,7 @@
   </header>
 
   <div class="search-box">
-    <input type="text" id="searchInput" placeholder="Search YouTube music..." value="Karan Aujla" />
+    <input type="text" id="searchInput" placeholder="Search full song on YouTube..." value="Karan Aujla" />
     <button class="search-btn" onclick="handleSearch()">Search</button>
   </div>
 
@@ -263,25 +265,30 @@
     <div class="tag" onclick="quickSearch('Sidhu Moosewala')">👑 Sidhu Moosewala</div>
   </div>
 
-  <div id="status" class="status">Type a song and hit search.</div>
+  <div id="status" class="status">Initialising YouTube Engine...</div>
 
   <div id="trackList" class="track-list"></div>
 
-  <!-- Bottom YouTube Player -->
+  <!-- Bottom Player Container using YouTube Iframe API -->
   <div id="playerBar" class="player-bar">
     <div class="player-header">
       <img id="playerImg" src="" alt="Cover" />
       <div class="player-title-box">
         <div id="playerTitle" class="player-title">Track Name</div>
-        <div id="playerArtist" class="player-artist">🎤 Playing from YouTube</div>
+        <div id="playerArtist" class="player-artist">🎤 YouTube Full Track</div>
       </div>
     </div>
-    <div class="iframe-wrapper">
-      <iframe id="ytPlayer" allow="autoplay; encrypted-media"></iframe>
+    <div class="yt-wrapper">
+      <div id="yt-player-container"></div>
     </div>
   </div>
 
+  <!-- Load YouTube Iframe API -->
+  <script src="https://www.youtube.com/iframe_api"></script>
+
   <script>
+    let ytPlayer = null;
+    let isApiReady = false;
     let currentPlaylist = [];
     let currentIndex = 0;
 
@@ -289,9 +296,41 @@
     const trackList = document.getElementById('trackList');
     const status = document.getElementById('status');
     const playerBar = document.getElementById('playerBar');
-    const ytPlayer = document.getElementById('ytPlayer');
     const playerImg = document.getElementById('playerImg');
     const playerTitle = document.getElementById('playerTitle');
+    const playerArtist = document.getElementById('playerArtist');
+
+    // Called automatically when YouTube API JS finishes loading
+    function onYouTubeIframeAPIReady() {
+      ytPlayer = new YT.Player('yt-player-container', {
+        height: '100%',
+        width: '100%',
+        playerVars: {
+          'autoplay': 1,
+          'controls': 1,
+          'playsinline': 1,
+          'modestbranding': 1
+        },
+        events: {
+          'onReady': () => {
+            isApiReady = true;
+            status.textContent = 'Ready! Tap search to play full songs.';
+            handleSearch();
+          },
+          'onStateChange': onPlayerStateChange
+        }
+      });
+    }
+
+    // Auto-play next song when current video ends
+    function onPlayerStateChange(event) {
+      if (event.data === YT.PlayerState.ENDED) {
+        if (currentIndex + 1 < currentPlaylist.length) {
+          currentIndex++;
+          playSongAtIndex(currentIndex);
+        }
+      }
+    }
 
     searchInput.addEventListener('keypress', (e) => {
       if (e.key === 'Enter') handleSearch();
@@ -306,52 +345,67 @@
       const query = searchInput.value.trim();
       if (!query) return;
 
-      status.textContent = 'Searching YouTube...';
+      status.textContent = 'Searching YouTube for full tracks...';
       trackList.innerHTML = '';
 
-      const songs = await fetchYouTubeSongs(query);
+      const songs = await fetchYouTubeTracks(query);
 
       if (songs && songs.length > 0) {
         currentPlaylist = songs;
         currentIndex = 0;
-        status.textContent = `▶ Found ${songs.length} YouTube tracks. Tap any track to play:`;
+        status.textContent = `▶ Found ${songs.length} full YouTube tracks. Tap any track to play:`;
         renderTracks();
       } else {
-        status.textContent = 'No tracks found. Try searching another song name.';
+        status.textContent = 'No tracks found. Try another search query.';
       }
     }
 
-    // High-Reliability YouTube Search Engine
-    async function fetchYouTubeSongs(query) {
+    // Multi-Server YouTube Search Fetcher
+    async function fetchYouTubeTracks(query) {
       const cleanQuery = encodeURIComponent(query + ' song');
-      
-      const servers = [
+
+      // Public API mirrors for quick search resolution
+      const apis = [
+        `https://pipedapi.kavin.rocks/search?q=${cleanQuery}&filter=music_songs`,
+        `https://api.piped.video/search?q=${cleanQuery}&filter=music_songs`,
         `https://inv.hostux.net/api/v1/search?q=${cleanQuery}&type=video`,
-        `https://invidious.nerdvpn.de/api/v1/search?q=${cleanQuery}&type=video`,
-        `https://vid.puffyan.us/api/v1/search?q=${cleanQuery}&type=video`,
-        `https://invidious.drgns.space/api/v1/search?q=${cleanQuery}&type=video`
+        `https://invidious.nerdvpn.de/api/v1/search?q=${cleanQuery}&type=video`
       ];
 
-      for (const url of servers) {
+      for (const url of apis) {
         try {
           const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 3000);
+          const timeout = setTimeout(() => controller.abort(), 3500);
           const res = await fetch(url, { signal: controller.signal });
           clearTimeout(timeout);
 
           if (!res.ok) continue;
-          const items = await res.json();
+          const data = await res.json();
 
-          if (Array.isArray(items) && items.length > 0) {
-            return items.map(item => ({
+          // Piped Response Format
+          if (data.items && Array.isArray(data.items) && data.items.length > 0) {
+            return data.items.map(item => {
+              const videoId = item.url ? item.url.replace('/watch?v=', '') : '';
+              return {
+                id: videoId,
+                title: item.title || 'Unknown Song',
+                artist: item.uploaderName || 'YouTube Artist',
+                image: item.thumbnail || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`
+              };
+            }).filter(s => s.id);
+          }
+
+          // Invidious Response Format
+          if (Array.isArray(data) && data.length > 0) {
+            return data.map(item => ({
               id: item.videoId,
-              title: item.title,
-              artist: item.author || 'YouTube Music',
+              title: item.title || 'Unknown Song',
+              artist: item.author || 'YouTube Artist',
               image: item.videoThumbnails?.find(t => t.quality === 'medium')?.url || `https://i.ytimg.com/vi/${item.videoId}/hqdefault.jpg`
             })).filter(s => s.id);
           }
         } catch (e) {
-          console.warn('YouTube server timeout, trying backup mirror...');
+          console.warn('Mirror API timed out, switching backup...', url);
         }
       }
 
@@ -389,10 +443,13 @@
 
       playerImg.src = song.image;
       playerTitle.textContent = song.title;
-      
-      // Embed YouTube Player with Autoplay
-      ytPlayer.src = `https://www.youtube-nocookie.com/embed/${song.id}?autoplay=1&enablejsapi=1`;
+      playerArtist.textContent = `🎤 ${song.artist}`;
       playerBar.style.display = 'flex';
+
+      // Load and play video via YouTube Iframe Player API
+      if (ytPlayer && isApiReady) {
+        ytPlayer.loadVideoById(song.id);
+      }
 
       renderTracks();
     }
@@ -400,9 +457,6 @@
     function escapeHtml(str) {
       return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
     }
-
-    // Initial Search on Load
-    handleSearch();
   </script>
 </body>
 </html>
