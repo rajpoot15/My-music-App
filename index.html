@@ -133,6 +133,9 @@
     .song-artist {
       font-size: 13px;
       color: #9ca3af;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     audio {
@@ -161,7 +164,7 @@
   </div>
 
   <!-- Status Message -->
-  <div id="statusMsg" class="status-msg">Click a singer or search to play songs</div>
+  <div id="statusMsg" class="status-msg">Click a singer or search to play full songs</div>
 
   <!-- Results List -->
   <div id="resultsContainer" class="results-container"></div>
@@ -173,45 +176,75 @@
     const resultsContainer = document.getElementById("resultsContainer");
     const singerChips = document.querySelectorAll(".singer-chip");
 
-    // Live API Search Function
+    // Clean up HTML encoding in track titles
+    function decodeHTML(text) {
+      const txt = document.createElement("textarea");
+      txt.innerHTML = text;
+      return txt.value;
+    }
+
+    // Search Function using JioSaavn API for FULL songs
     async function searchSongs(query) {
       if (!query.trim()) return;
 
-      statusMsg.textContent = `Searching all songs for "${query}"...`;
+      statusMsg.textContent = `Searching full songs for "${query}"...`;
       resultsContainer.innerHTML = "";
 
       try {
-        // Fetching songs from free iTunes API
-        const response = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(query)}&entity=song&limit=10`);
+        const response = await fetch(`https://saavn.dev/api/search/songs?query=${encodeURIComponent(query)}`);
         const data = await response.json();
 
-        if (data.results.length === 0) {
+        const songs = data.data && data.data.results ? data.data.results : [];
+
+        if (songs.length === 0) {
           statusMsg.textContent = `No songs found for "${query}"`;
           return;
         }
 
-        statusMsg.textContent = `Top songs for "${query}":`;
+        statusMsg.textContent = `Full songs for "${query}":`;
 
-        // Loop through results and create song cards
-        data.results.forEach(song => {
-          const songCard = document.createElement("div");
-          songCard.className = "song-card";
+        songs.forEach(song => {
+          // Select highest available audio quality (320kbps or fallback)
+          let audioUrl = "";
+          if (song.downloadUrl && song.downloadUrl.length > 0) {
+            const bestAudio = song.downloadUrl.find(d => d.quality === "320kbps") || 
+                              song.downloadUrl.find(d => d.quality === "160kbps") || 
+                              song.downloadUrl[song.downloadUrl.length - 1];
+            audioUrl = bestAudio ? (bestAudio.url || bestAudio.link) : "";
+          }
 
-          songCard.innerHTML = `
-            <img src="${song.artworkUrl100}" alt="${song.trackName}">
-            <div class="song-details">
-              <div class="song-title">${song.trackName}</div>
-              <div class="song-artist">${song.artistName}</div>
-              <audio controls src="${song.previewUrl}"></audio>
-            </div>
-          `;
+          // Select album artwork
+          let imageUrl = "https://via.placeholder.com/150";
+          if (song.image && song.image.length > 0) {
+            const bestImage = song.image.find(i => i.quality === "150x150") || 
+                              song.image.find(i => i.quality === "500x500") || 
+                              song.image[song.image.length - 1];
+            imageUrl = bestImage ? (bestImage.url || bestImage.link) : imageUrl;
+          }
 
-          resultsContainer.appendChild(songCard);
+          const trackName = decodeHTML(song.name || "Unknown Song");
+          const artistName = decodeHTML(song.primaryArtists || "Unknown Artist");
+
+          if (audioUrl) {
+            const songCard = document.createElement("div");
+            songCard.className = "song-card";
+
+            songCard.innerHTML = `
+              <img src="${imageUrl}" alt="${trackName}">
+              <div class="song-details">
+                <div class="song-title">${trackName}</div>
+                <div class="song-artist">${artistName}</div>
+                <audio controls src="${audioUrl}"></audio>
+              </div>
+            `;
+
+            resultsContainer.appendChild(songCard);
+          }
         });
 
       } catch (error) {
         console.error(error);
-        statusMsg.textContent = "Failed to load songs. Check internet connection.";
+        statusMsg.textContent = "Failed to load songs. Please check your internet connection.";
       }
     }
 
