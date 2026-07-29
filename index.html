@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Mobile Music Player</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #121212; color: #fff; padding: 16px; padding-bottom: 110px; }
+    h1 { margin-bottom: 16px; font-size: 22px; text-align: center; color: #1db954; }
+    .track-list { display: flex; flex-direction: column; gap: 10px; }
+    .track-card { display: flex; align-items: center; gap: 12px; background: #1e1e1e; padding: 10px; border-radius: 8px; cursor: pointer; }
+    .track-card:active { background: #282828; }
+    .track-card img { width: 50px; height: 50px; border-radius: 6px; object-fit: cover; }
+    .track-info { flex: 1; min-width: 0; }
+    .track-title { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .track-artist { font-size: 12px; color: #aaa; margin-top: 2px; }
+    .player-bar { position: fixed; bottom: 0; left: 0; right: 0; background: #181818; border-top: 1px solid #282828; padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 -4px 12px rgba(0,0,0,0.5); }
+    .now-playing { font-size: 13px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #1db954; font-weight: 500; }
+    audio { width: 100%; height: 36px; border-radius: 20px; outline: none; }
+  </style>
+</head>
+<body>
+  <h1>🎵 My Music Player</h1>
+  <div id="tracks" class="track-list">Loading tracks...</div>
+
+  <div class="player-bar">
+    <div id="nowPlaying" class="now-playing">Tap any track to play</div>
+    <audio id="audioPlayer" controls></audio>
+  </div>
+
+  <script>
+    const API_URL = 'https://api.jamendo.com/v3.0/tracks/?client_id=56b4128d&format=json&limit=15&order=popularity_month';
+    const tracksContainer = document.getElementById('tracks');
+    const audioPlayer = document.getElementById('audioPlayer');
+    const nowPlaying = document.getElementById('nowPlaying');
+
+    async function fetchMusic() {
+      try {
+        const response = await fetch(API_URL);
+        const data = await response.json();
+        tracksContainer.innerHTML = '';
+
+        data.results.forEach(track => {
+          const card = document.createElement('div');
+          card.className = 'track-card';
+          card.innerHTML = `
+            <img src="${track.image}" alt="${track.name}">
+            <div class="track-info">
+              <div class="track-title">${track.name}</div>
+              <div class="track-artist">${track.artist_name}</div>
+            </div>
+          `;
+          card.onclick = () => {
+            audioPlayer.src = track.audio;
+            audioPlayer.play();
+            nowPlaying.textContent = `▶ ${track.name} - ${track.artist_name}`;
+          };
+          tracksContainer.appendChild(card);
+        });
+      } catch (err) {
+        tracksContainer.innerHTML = '<p style="color:#ff5555; text-align:center;">Failed to load music. Try refreshing.</p>';
+      }
+    }
+
+    fetchMusic();
+  </script>
+</body>
+</html>
