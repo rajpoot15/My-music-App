@@ -25,7 +25,7 @@
       background-color: var(--bg);
       color: var(--text);
       padding: 16px;
-      padding-bottom: 230px;
+      padding-bottom: 160px;
       max-width: 600px;
       margin: 0 auto;
     }
@@ -179,7 +179,7 @@
       font-weight: bold;
     }
 
-    /* Fixed Bottom Player Container */
+    /* Fixed Bottom Native Audio Player */
     .player-bar {
       position: fixed;
       bottom: 0;
@@ -233,18 +233,11 @@
       text-overflow: ellipsis;
     }
 
-    .iframe-wrapper {
+    audio {
       width: 100%;
-      height: 130px;
+      height: 40px;
+      outline: none;
       border-radius: 8px;
-      overflow: hidden;
-      background: #000;
-    }
-
-    iframe {
-      width: 100%;
-      height: 100%;
-      border: none;
     }
   </style>
 </head>
@@ -255,33 +248,31 @@
   </header>
 
   <div class="search-box">
-    <input type="text" id="searchInput" placeholder="Search song or artist..." value="Karan Aujla" />
+    <input type="text" id="searchInput" placeholder="Search song or artist..." value="Humsafar" />
     <button class="search-btn" onclick="handleSearch()">Search</button>
   </div>
 
   <div class="tags">
-    <div class="tag" onclick="quickSearch('Karan Aujla')">🎤 Karan Aujla</div>
     <div class="tag" onclick="quickSearch('Humsafar')">✨ Humsafar</div>
+    <div class="tag" onclick="quickSearch('Karan Aujla')">🎤 Karan Aujla</div>
     <div class="tag" onclick="quickSearch('Supreme Shubh')">🔥 Supreme - Shubh</div>
     <div class="tag" onclick="quickSearch('Faded Alan Walker')">🎧 Faded - Alan Walker</div>
   </div>
 
-  <div id="status" class="status">Connecting to music servers...</div>
+  <div id="status" class="status">Connecting to music player...</div>
 
   <div id="trackList" class="track-list"></div>
 
-  <!-- Bottom Full Song Player -->
+  <!-- Bottom Clean Audio Player -->
   <div id="playerBar" class="player-bar">
     <div class="player-header">
       <img id="playerImg" src="" alt="Cover" />
       <div class="player-title-box">
         <div id="playerTitle" class="player-title">Track Name</div>
-        <div id="playerArtist" class="player-artist">🎤 Playing Full Track</div>
+        <div id="playerArtist" class="player-artist">Artist</div>
       </div>
     </div>
-    <div class="iframe-wrapper">
-      <iframe id="ytPlayer" allow="autoplay; encrypted-media"></iframe>
-    </div>
+    <audio id="audioPlayer" controls autoplay></audio>
   </div>
 
   <script>
@@ -292,13 +283,20 @@
     const trackList = document.getElementById('trackList');
     const status = document.getElementById('status');
     const playerBar = document.getElementById('playerBar');
-    const ytPlayer = document.getElementById('ytPlayer');
+    const audioPlayer = document.getElementById('audioPlayer');
     const playerImg = document.getElementById('playerImg');
     const playerTitle = document.getElementById('playerTitle');
     const playerArtist = document.getElementById('playerArtist');
 
     searchInput.addEventListener('keypress', (e) => {
       if (e.key === 'Enter') handleSearch();
+    });
+
+    audioPlayer.addEventListener('ended', () => {
+      if (currentIndex + 1 < currentPlaylist.length) {
+        currentIndex++;
+        playSongAtIndex(currentIndex);
+      }
     });
 
     function quickSearch(query) {
@@ -313,20 +311,20 @@
       status.textContent = 'Searching tracks...';
       trackList.innerHTML = '';
 
-      const songs = await fetchSongs(query);
+      const songs = await fetchUnblockedSongs(query);
 
       if (songs && songs.length > 0) {
         currentPlaylist = songs;
         currentIndex = 0;
-        status.textContent = `▶ Loaded ${songs.length} tracks. Tap any song to play full track:`;
+        status.textContent = `▶ Loaded ${songs.length} playable tracks. Tap any song:`;
         renderTracks();
       } else {
-        status.textContent = 'No tracks found. Please try another search term.';
+        status.textContent = 'No playable tracks found. Try another query.';
       }
     }
 
-    // Guaranteed Unblocked Search via Apple CDN
-    async function fetchSongs(query) {
+    // Direct Unblocked Audio Search via Apple iTunes Engine
+    async function fetchUnblockedSongs(query) {
       try {
         const url = `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&media=music&entity=song&limit=30`;
         const res = await fetch(url);
@@ -338,8 +336,9 @@
             id: item.trackId,
             title: item.trackName || 'Unknown Title',
             artist: item.artistName || 'Unknown Artist',
-            image: item.artworkUrl100 ? item.artworkUrl100.replace('100x100bb', '300x300bb') : 'https://via.placeholder.com/150'
-          }));
+            image: item.artworkUrl100 ? item.artworkUrl100.replace('100x100bb', '300x300bb') : 'https://via.placeholder.com/150',
+            audio: item.previewUrl
+          })).filter(s => s.audio);
         }
       } catch (e) {
         console.error('Fetch error:', e);
@@ -380,11 +379,10 @@
       playerTitle.textContent = song.title;
       playerArtist.textContent = `🎤 ${song.artist}`;
       
-      // Bypasses YouTube embed restriction by targeting official audio stream
-      const searchQuery = encodeURIComponent(`${song.title} ${song.artist} audio`);
-      ytPlayer.src = `https://www.youtube-nocookie.com/embed?listType=search&list=${searchQuery}&autoplay=1`;
+      audioPlayer.src = song.audio;
       playerBar.style.display = 'flex';
 
+      audioPlayer.play().catch(err => console.log('Playback error:', err));
       renderTracks();
     }
 
@@ -392,7 +390,7 @@
       return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
     }
 
-    // Auto search on page load
+    // Initial search
     handleSearch();
   </script>
 </body>
