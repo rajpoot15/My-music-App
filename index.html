@@ -25,7 +25,7 @@
       background-color: var(--bg);
       color: var(--text);
       padding: 16px;
-      padding-bottom: 230px;
+      padding-bottom: 160px;
       max-width: 600px;
       margin: 0 auto;
     }
@@ -144,8 +144,8 @@
     }
 
     .track-img {
-      width: 56px;
-      height: 56px;
+      width: 54px;
+      height: 54px;
       border-radius: 8px;
       object-fit: cover;
       background: #333;
@@ -179,7 +179,7 @@
       font-weight: bold;
     }
 
-    /* Fixed Bottom Player Container */
+    /* Fixed Bottom Native Audio Player */
     .player-bar {
       position: fixed;
       bottom: 0;
@@ -204,8 +204,8 @@
     }
 
     .player-header img {
-      width: 46px;
-      height: 46px;
+      width: 48px;
+      height: 48px;
       border-radius: 6px;
       object-fit: cover;
     }
@@ -233,18 +233,11 @@
       text-overflow: ellipsis;
     }
 
-    .iframe-wrapper {
+    audio {
       width: 100%;
-      height: 120px;
+      height: 40px;
+      outline: none;
       border-radius: 8px;
-      overflow: hidden;
-      background: #000;
-    }
-
-    iframe {
-      width: 100%;
-      height: 100%;
-      border: none;
     }
   </style>
 </head>
@@ -255,33 +248,31 @@
   </header>
 
   <div class="search-box">
-    <input type="text" id="searchInput" placeholder="Search any song or artist..." value="Humsafar" />
+    <input type="text" id="searchInput" placeholder="Search song or artist..." value="Karan Aujla" />
     <button class="search-btn" onclick="handleSearch()">Search</button>
   </div>
 
   <div class="tags">
-    <div class="tag" onclick="quickSearch('Humsafar')">✨ Humsafar</div>
     <div class="tag" onclick="quickSearch('Karan Aujla')">🎤 Karan Aujla</div>
+    <div class="tag" onclick="quickSearch('Humsafar')">✨ Humsafar</div>
     <div class="tag" onclick="quickSearch('Supreme Shubh')">🔥 Supreme - Shubh</div>
     <div class="tag" onclick="quickSearch('Faded Alan Walker')">🎧 Faded - Alan Walker</div>
   </div>
 
-  <div id="status" class="status">Loading search engine...</div>
+  <div id="status" class="status">Connecting to music servers...</div>
 
   <div id="trackList" class="track-list"></div>
 
-  <!-- Bottom YouTube Full Track Player -->
+  <!-- Bottom Player Container -->
   <div id="playerBar" class="player-bar">
     <div class="player-header">
       <img id="playerImg" src="" alt="Cover" />
       <div class="player-title-box">
         <div id="playerTitle" class="player-title">Track Name</div>
-        <div id="playerArtist" class="player-artist">🎤 Playing Full YouTube Track</div>
+        <div id="playerArtist" class="player-artist">Artist</div>
       </div>
     </div>
-    <div class="iframe-wrapper">
-      <iframe id="ytPlayer" allow="autoplay; encrypted-media"></iframe>
-    </div>
+    <audio id="audioPlayer" controls autoplay></audio>
   </div>
 
   <script>
@@ -292,13 +283,21 @@
     const trackList = document.getElementById('trackList');
     const status = document.getElementById('status');
     const playerBar = document.getElementById('playerBar');
-    const ytPlayer = document.getElementById('ytPlayer');
+    const audioPlayer = document.getElementById('audioPlayer');
     const playerImg = document.getElementById('playerImg');
     const playerTitle = document.getElementById('playerTitle');
     const playerArtist = document.getElementById('playerArtist');
 
     searchInput.addEventListener('keypress', (e) => {
       if (e.key === 'Enter') handleSearch();
+    });
+
+    // Auto-play next track when song finishes
+    audioPlayer.addEventListener('ended', () => {
+      if (currentIndex + 1 < currentPlaylist.length) {
+        currentIndex++;
+        playSongAtIndex(currentIndex);
+      }
     });
 
     function quickSearch(query) {
@@ -310,41 +309,94 @@
       const query = searchInput.value.trim();
       if (!query) return;
 
-      status.textContent = 'Searching tracks...';
+      status.textContent = 'Searching full tracks...';
       trackList.innerHTML = '';
 
-      const songs = await fetchSongs(query);
+      const songs = await fetchFullSongs(query);
 
       if (songs && songs.length > 0) {
         currentPlaylist = songs;
         currentIndex = 0;
-        status.textContent = `▶ Loaded ${songs.length} tracks. Tap any song to play full video/audio:`;
+        status.textContent = `▶ Loaded ${songs.length} full tracks. Tap any song to play:`;
         renderTracks();
       } else {
         status.textContent = 'No tracks found. Please try another search term.';
       }
     }
 
-    // High-Reliability Search API
-    async function fetchSongs(query) {
-      try {
-        const url = `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&media=music&limit=25`;
-        const res = await fetch(url);
-        if (!res.ok) return [];
-        const json = await res.json();
+    // Ultra-Reliable Multi-Server Fetcher
+    async function fetchFullSongs(query) {
+      const cleanQuery = encodeURIComponent(query);
 
-        if (json.results && json.results.length > 0) {
-          return json.results.map(item => ({
-            id: item.trackId,
-            title: item.trackName || 'Unknown Title',
-            artist: item.artistName || 'Unknown Artist',
-            image: item.artworkUrl100 ? item.artworkUrl100.replace('100x100bb', '300x300bb') : 'https://via.placeholder.com/150'
-          }));
+      const apiServers = [
+        `https://saavn.dev/api/search/songs?query=${cleanQuery}&limit=30`,
+        `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://saavn.dev/api/search/songs?query=${cleanQuery}&limit=30`)}`,
+        `https://jiosaavn-api-private-us.vercel.app/search/songs?query=${cleanQuery}&limit=30`
+      ];
+
+      for (const url of apiServers) {
+        try {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 4000);
+          const res = await fetch(url, { signal: controller.signal });
+          clearTimeout(timeout);
+
+          if (!res.ok) continue;
+          const json = await res.json();
+          const rawItems = json?.data?.results || json?.results || json?.data || [];
+
+          if (Array.isArray(rawItems) && rawItems.length > 0) {
+            const formatted = parseSongData(rawItems);
+            if (formatted.length > 0) return formatted;
+          }
+        } catch (e) {
+          console.warn('Primary server timeout, trying backup mirror...');
         }
-      } catch (e) {
-        console.error('Fetch error:', e);
       }
+
       return [];
+    }
+
+    function parseSongData(items) {
+      return items.map(item => {
+        // Image extraction
+        let imgUrl = '';
+        if (Array.isArray(item.image)) {
+          imgUrl = item.image[item.image.length - 1]?.url || item.image[0]?.url || '';
+        } else if (typeof item.image === 'string') {
+          imgUrl = item.image;
+        }
+
+        // High quality Audio URL extraction
+        let audioUrl = '';
+        const dl = item.downloadUrl || item.download_url || item.media_url;
+        if (Array.isArray(dl) && dl.length > 0) {
+          const target = dl.find(d => d.quality === '320kbps') || 
+                         dl.find(d => d.quality === '160kbps') || 
+                         dl[dl.length - 1];
+          audioUrl = target?.url || target?.link || (typeof target === 'string' ? target : '');
+        } else if (typeof dl === 'string') {
+          audioUrl = dl;
+        }
+
+        // Artist Name extraction
+        let artistName = 'Artist';
+        if (item.artists && Array.isArray(item.artists.primary) && item.artists.primary.length > 0) {
+          artistName = item.artists.primary.map(a => a.name).join(', ');
+        } else if (item.primaryArtists) {
+          artistName = item.primaryArtists;
+        } else if (item.artist) {
+          artistName = item.artist;
+        }
+
+        return {
+          id: item.id || Math.random().toString(),
+          title: cleanHtmlEntities(item.name || item.title || 'Unknown Song'),
+          artist: cleanHtmlEntities(artistName),
+          image: imgUrl || 'https://via.placeholder.com/150',
+          audio: audioUrl
+        };
+      }).filter(song => song.audio && song.audio.startsWith('http'));
     }
 
     function renderTracks() {
@@ -380,19 +432,24 @@
       playerTitle.textContent = song.title;
       playerArtist.textContent = `🎤 ${song.artist}`;
       
-      // Load YouTube Search Stream for full song playback
-      const queryParam = encodeURIComponent(`${song.title} ${song.artist}`);
-      ytPlayer.src = `https://www.youtube-nocookie.com/embed?listType=search&list=${queryParam}&autoplay=1`;
+      audioPlayer.src = song.audio;
       playerBar.style.display = 'flex';
 
+      audioPlayer.play().catch(err => console.log('Autoplay handled:', err));
       renderTracks();
+    }
+
+    function cleanHtmlEntities(str) {
+      if (!str) return '';
+      const parser = new DOMParser();
+      return parser.parseFromString(str, 'text/html').body.textContent || str;
     }
 
     function escapeHtml(str) {
       return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
     }
 
-    // Run search on page load
+    // Initial Search on Page Load
     handleSearch();
   </script>
 </body>
