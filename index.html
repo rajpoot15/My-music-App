@@ -54,7 +54,7 @@
       cursor: pointer;
     }
 
-    /* Recently Searched Chips Section */
+    /* Recently Searched Section */
     .recent-section {
       width: 100%;
       max-width: 450px;
@@ -100,7 +100,7 @@
       text-align: center;
     }
 
-    /* Song Results Container */
+    /* Results Container */
     .results-container {
       display: flex;
       flex-direction: column;
@@ -115,17 +115,14 @@
       padding: 12px;
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: 10px;
       border: 1px solid #2a2a2a;
     }
 
     .song-title {
       font-weight: bold;
-      font-size: 16px;
+      font-size: 15px;
       color: #10b981;
-      display: flex;
-      align-items: center;
-      gap: 8px;
     }
 
     .youtube-player {
@@ -167,24 +164,27 @@
     const recentSection = document.getElementById("recentSection");
     const recentTagsContainer = document.getElementById("recentTagsContainer");
 
-    // Load recent searches from Local Storage
+    // Multiple YouTube API Servers (Backup System)
+    const apiServers = [
+      "https://pipedapi.kavin.rocks/search?filter=all&q=",
+      "https://api.piped.yt/search?filter=all&q=",
+      "https://inv.tux.pizza/api/v1/search?q="
+    ];
+
+    // Local Storage - Get Recent Searches
     function getRecentSearches() {
       const recents = localStorage.getItem("recentSearches");
       return recents ? JSON.parse(recents) : [];
     }
 
-    // Save new search query
+    // Local Storage - Save Search
     function saveRecentSearch(query) {
       if (!query.trim()) return;
       let recents = getRecentSearches();
 
-      // Remove duplicates
       recents = recents.filter(item => item.toLowerCase() !== query.toLowerCase());
-
-      // Add to start
       recents.unshift(query);
 
-      // Keep maximum 5 items
       if (recents.length > 5) {
         recents = recents.slice(0, 5);
       }
@@ -193,7 +193,7 @@
       renderRecentChips();
     }
 
-    // Render Recent Search Chips
+    // Render Recent Chips
     function renderRecentChips() {
       const recents = getRecentSearches();
       if (recents.length === 0) {
@@ -210,38 +210,75 @@
         chip.textContent = `🕒 ${query}`;
         chip.addEventListener("click", () => {
           searchInput.value = query;
-          playSong(query);
+          searchAndPlay(query);
         });
         recentTagsContainer.appendChild(chip);
       });
     }
 
-    // Direct Instant YouTube Search & Play Function
-    function playSong(query) {
+    // Fetch Video ID using Multi-Server System
+    async function fetchVideoResults(query) {
+      for (let serverUrl of apiServers) {
+        try {
+          const res = await fetch(serverUrl + encodeURIComponent(query));
+          if (!res.ok) continue;
+          
+          const data = await res.json();
+          let items = data.items || data;
+          
+          // Filter out videos
+          let videos = items.filter(item => item.url || item.videoId || item.id);
+          if (videos.length > 0) {
+            return videos.slice(0, 3).map(v => {
+              let id = v.videoId || v.id;
+              if (!id && v.url) {
+                id = v.url.replace("/watch?v=", "");
+              }
+              return {
+                title: v.title,
+                id: id
+              };
+            });
+          }
+        } catch (e) {
+          console.warn("Server failed, trying next...", serverUrl);
+        }
+      }
+      return null;
+    }
+
+    // Search and Render Working YouTube Songs
+    async function searchAndPlay(query) {
       if (!query.trim()) return;
 
       saveRecentSearch(query);
-
-      statusMsg.textContent = `Playing results for "${query}"`;
+      statusMsg.textContent = `Finding songs for "${query}"...`;
       resultsContainer.innerHTML = "";
 
-      const songCard = document.createElement("div");
-      songCard.className = "song-card";
+      const videos = await fetchVideoResults(query);
 
-      // Direct Embed URL (No API call required)
-      const embedUrl = `https://www.youtube-nocookie.com/embed?listType=search&list=${encodeURIComponent(query)}`;
+      if (videos && videos.length > 0) {
+        statusMsg.textContent = `Top Results for "${query}":`;
+        
+        videos.forEach(video => {
+          if (!video.id) return;
+          const songCard = document.createElement("div");
+          songCard.className = "song-card";
 
-      songCard.innerHTML = `
-        <div class="song-title">▶ ${query}</div>
-        <iframe 
-          class="youtube-player" 
-          src="${embedUrl}" 
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-          allowfullscreen>
-        </iframe>
-      `;
-
-      resultsContainer.appendChild(songCard);
+          songCard.innerHTML = `
+            <div class="song-title">▶ ${video.title}</div>
+            <iframe 
+              class="youtube-player" 
+              src="https://www.youtube-nocookie.com/embed/${video.id}" 
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+              allowfullscreen>
+            </iframe>
+          `;
+          resultsContainer.appendChild(songCard);
+        });
+      } else {
+        statusMsg.textContent = `Could not load songs for "${query}". Try again.`;
+      }
     }
 
     // Load chips on startup
@@ -249,12 +286,12 @@
 
     // Event Listeners
     searchBtn.addEventListener("click", () => {
-      playSong(searchInput.value);
+      searchAndPlay(searchInput.value);
     });
 
     searchInput.addEventListener("keypress", (e) => {
       if (e.key === "Enter") {
-        playSong(searchInput.value);
+        searchAndPlay(searchInput.value);
       }
     });
   </script>
