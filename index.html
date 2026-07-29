@@ -1,300 +1,548 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>My Music Player</title>
   <style>
-    body {
-      background-color: #121212;
-      color: #ffffff;
-      font-family: Arial, sans-serif;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 20px;
+    :root {
+      --bg: #121212;
+      --card: #1e1e1e;
+      --card-active: #282828;
+      --primary: #1db954;
+      --text: #ffffff;
+      --subtext: #b3b3b3;
+    }
+
+    * {
+      box-sizing: border-box;
       margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     }
 
-    .title {
-      color: #10b981;
-      font-size: 24px;
-      font-weight: bold;
-      margin-bottom: 20px;
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      padding: 16px;
+      padding-bottom: 130px;
+      max-width: 600px;
+      margin: 0 auto;
     }
 
-    /* Search Bar Layout */
-    .search-container {
+    header {
+      text-align: center;
+      margin-bottom: 18px;
+    }
+
+    h1 {
+      color: var(--primary);
+      font-size: 1.8rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .search-box {
       display: flex;
       gap: 10px;
-      width: 100%;
-      max-width: 450px;
-      margin-bottom: 15px;
+      margin-bottom: 14px;
     }
 
-    .search-input {
+    input[type="text"] {
       flex: 1;
-      padding: 12px 18px;
+      padding: 12px 16px;
       border-radius: 25px;
       border: 1px solid #333;
-      background-color: #1e1e1e;
-      color: #fff;
-      font-size: 16px;
+      background: var(--card);
+      color: var(--text);
+      font-size: 1rem;
       outline: none;
     }
 
-    .search-btn {
-      padding: 12px 24px;
+    input[type="text"]:focus {
+      border-color: var(--primary);
+    }
+
+    button.search-btn {
+      padding: 12px 20px;
       border-radius: 25px;
       border: none;
-      background-color: #10b981;
+      background: var(--primary);
       color: #000;
       font-weight: bold;
-      font-size: 16px;
+      font-size: 1rem;
       cursor: pointer;
     }
 
-    /* Recently Searched Section */
-    .recent-section {
-      width: 100%;
-      max-width: 450px;
-      margin-bottom: 15px;
-    }
-
-    .recent-title {
-      font-size: 12px;
-      color: #9ca3af;
-      margin-bottom: 8px;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-
-    .recent-tags {
+    .tags {
       display: flex;
-      gap: 10px;
+      gap: 8px;
       overflow-x: auto;
-      width: 100%;
       padding-bottom: 8px;
+      margin-bottom: 16px;
+      scrollbar-width: none;
     }
 
-    .recent-chip {
-      background-color: #242424;
-      color: #e5e7eb;
-      border: 1px solid #374151;
-      padding: 8px 16px;
+    .tags::-webkit-scrollbar {
+      display: none;
+    }
+
+    .tag {
+      background: var(--card);
+      border: 1px solid #333;
+      color: var(--subtext);
+      padding: 8px 14px;
       border-radius: 20px;
-      font-size: 14px;
       white-space: nowrap;
+      font-size: 0.85rem;
       cursor: pointer;
-      transition: background 0.2s;
     }
 
-    .recent-chip:hover {
-      background-color: #333333;
+    .tag:hover {
+      border-color: var(--primary);
+      color: var(--text);
     }
 
-    .status-msg {
-      margin: 10px 0 15px 0;
-      color: #9ca3af;
-      font-size: 14px;
+    .status {
       text-align: center;
+      color: var(--subtext);
+      margin: 15px 0 20px;
+      font-size: 0.9rem;
     }
 
-    /* Results Container */
-    .results-container {
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-      width: 100%;
-      max-width: 450px;
-    }
-
-    .song-card {
-      background-color: #1e1e1e;
-      border-radius: 12px;
-      padding: 12px;
+    .track-list {
       display: flex;
       flex-direction: column;
       gap: 10px;
-      border: 1px solid #2a2a2a;
     }
 
-    .song-title {
-      font-weight: bold;
-      font-size: 15px;
-      color: #10b981;
+    .track-card {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: var(--card);
+      padding: 10px 14px;
+      border-radius: 12px;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: all 0.2s ease;
     }
 
-    .youtube-player {
-      width: 100%;
-      height: 230px;
-      border: none;
+    .track-card:hover {
+      background: var(--card-active);
+    }
+
+    /* Highlight currently playing song */
+    .track-card.active {
+      background: #18281e;
+      border-color: var(--primary);
+    }
+
+    .track-card.active .track-title {
+      color: var(--primary);
+    }
+
+    .track-img {
+      width: 52px;
+      height: 52px;
       border-radius: 8px;
-      background-color: #000;
+      object-fit: cover;
+      background: #333;
+    }
+
+    .track-info {
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .track-title {
+      font-size: 0.95rem;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .track-artist {
+      font-size: 0.82rem;
+      color: var(--subtext);
+      margin-top: 4px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .play-badge {
+      font-size: 0.8rem;
+      color: var(--primary);
+      font-weight: bold;
+    }
+
+    /* Sticky Bottom Player */
+    .player-bar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: #181818;
+      border-top: 1px solid #282828;
+      padding: 12px 16px;
+      display: none;
+      flex-direction: column;
+      gap: 10px;
+      box-shadow: 0 -6px 20px rgba(0,0,0,0.7);
+      z-index: 100;
+    }
+
+    .player-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .player-header img {
+      width: 46px;
+      height: 46px;
+      border-radius: 6px;
+      object-fit: cover;
+    }
+
+    .player-title-box {
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .player-title {
+      font-size: 0.9rem;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      color: var(--text);
+    }
+
+    .player-artist {
+      font-size: 0.78rem;
+      color: var(--primary);
+      margin-top: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    audio {
+      width: 100%;
+      height: 36px;
+      outline: none;
     }
   </style>
 </head>
 <body>
 
-  <div class="title">🎵 My Music Player</div>
+  <header>
+    <h1>🎵 My Music Player</h1>
+  </header>
 
-  <!-- Search Input and Button -->
-  <div class="search-container">
-    <input type="text" id="searchInput" class="search-input" placeholder="Search singer or song...">
-    <button id="searchBtn" class="search-btn">Search</button>
+  <div class="search-box">
+    <input type="text" id="searchInput" placeholder="Search song or artist..." value="Faded Alan Walker" />
+    <button class="search-btn" onclick="handleSearch()">Search</button>
   </div>
 
-  <!-- Dynamic Recently Searched Chips -->
-  <div class="recent-section" id="recentSection" style="display: none;">
-    <div class="recent-title">Recently Searched</div>
-    <div class="recent-tags" id="recentTagsContainer"></div>
+  <div class="tags">
+    <div class="tag" onclick="quickSearch('Faded Alan Walker')">🎧 Faded - Alan Walker</div>
+    <div class="tag" onclick="quickSearch('Supreme Shubh')">🔥 Supreme - Shubh</div>
+    <div class="tag" onclick="quickSearch('Karan Aujla')">🎤 Karan Aujla</div>
+    <div class="tag" onclick="quickSearch('Sidhu Moosewala')">👑 Sidhu Moosewala</div>
   </div>
 
-  <!-- Status Message -->
-  <div id="statusMsg" class="status-msg">Search a song or singer to play</div>
+  <div id="status" class="status">Tap search or select a tag to start your playlist.</div>
 
-  <!-- Results Area -->
-  <div id="resultsContainer" class="results-container"></div>
+  <div id="trackList" class="track-list"></div>
+
+  <!-- Bottom Player -->
+  <div id="playerBar" class="player-bar">
+    <div class="player-header">
+      <img id="playerImg" src="" alt="Cover" />
+      <div class="player-title-box">
+        <div id="playerTitle" class="player-title">Track Name</div>
+        <div id="playerArtist" class="player-artist">Artist</div>
+      </div>
+    </div>
+    <audio id="audioPlayer" controls></audio>
+  </div>
 
   <script>
-    const searchInput = document.getElementById("searchInput");
-    const searchBtn = document.getElementById("searchBtn");
-    const statusMsg = document.getElementById("statusMsg");
-    const resultsContainer = document.getElementById("resultsContainer");
-    const recentSection = document.getElementById("recentSection");
-    const recentTagsContainer = document.getElementById("recentTagsContainer");
+    // State management
+    let currentPlaylist = [];
+    let currentIndex = 0;
+    let isFetchingRecommendations = false;
 
-    // Multiple YouTube API Servers (Backup System)
-    const apiServers = [
-      "https://pipedapi.kavin.rocks/search?filter=all&q=",
-      "https://api.piped.yt/search?filter=all&q=",
-      "https://inv.tux.pizza/api/v1/search?q="
-    ];
+    const searchInput = document.getElementById('searchInput');
+    const trackList = document.getElementById('trackList');
+    const status = document.getElementById('status');
+    const playerBar = document.getElementById('playerBar');
+    const audioPlayer = document.getElementById('audioPlayer');
+    const playerImg = document.getElementById('playerImg');
+    const playerTitle = document.getElementById('playerTitle');
+    const playerArtist = document.getElementById('playerArtist');
 
-    // Local Storage - Get Recent Searches
-    function getRecentSearches() {
-      const recents = localStorage.getItem("recentSearches");
-      return recents ? JSON.parse(recents) : [];
+    // Handle Enter keypress
+    searchInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') handleSearch();
+    });
+
+    // AUTO-PLAY NEXT TRACK WHEN CURRENT SONG ENDS
+    audioPlayer.addEventListener('ended', async () => {
+      if (currentIndex + 1 < currentPlaylist.length) {
+        currentIndex++;
+        playSongAtIndex(currentIndex);
+      } else {
+        status.textContent = '✨ Generating similar songs for autoplay...';
+        await loadSimilarSongs(currentPlaylist[currentIndex]);
+        
+        if (currentIndex + 1 < currentPlaylist.length) {
+          currentIndex++;
+          playSongAtIndex(currentIndex);
+        } else {
+          status.textContent = 'Playlist completed.';
+        }
+      }
+    });
+
+    function quickSearch(query) {
+      searchInput.value = query;
+      handleSearch();
     }
 
-    // Local Storage - Save Search
-    function saveRecentSearch(query) {
-      if (!query.trim()) return;
-      let recents = getRecentSearches();
+    async function handleSearch() {
+      const query = searchInput.value.trim();
+      if (!query) return;
 
-      recents = recents.filter(item => item.toLowerCase() !== query.toLowerCase());
-      recents.unshift(query);
+      status.textContent = 'Searching network servers...';
+      trackList.innerHTML = '';
 
-      if (recents.length > 5) {
-        recents = recents.slice(0, 5);
+      const songs = await fetchSongs(query);
+
+      if (songs && songs.length > 0) {
+        currentPlaylist = songs;
+        currentIndex = 0;
+        status.textContent = `▶ Loaded ${songs.length} tracks. Tap any track to play:`;
+        renderTracks();
+      } else {
+        status.textContent = 'No tracks found. Try another search.';
       }
-
-      localStorage.setItem("recentSearches", JSON.stringify(recents));
-      renderRecentChips();
     }
 
-    // Render Recent Chips
-    function renderRecentChips() {
-      const recents = getRecentSearches();
-      if (recents.length === 0) {
-        recentSection.style.display = "none";
-        return;
+    // Multi-Server API Fetcher
+    async function fetchSongs(query) {
+      const endpoints = [
+        `https://saavn.dev/api/search/songs?query=${encodeURIComponent(query)}`,
+        `https://saavn.sumit.co/api/search/songs?query=${encodeURIComponent(query)}`
+      ];
+
+      for (const url of endpoints) {
+        try {
+          const res = await fetch(url);
+          if (!res.ok) continue;
+          const json = await res.json();
+          const items = json?.data?.results || json?.results || [];
+
+          if (items.length > 0) {
+            return formatSongsData(items);
+          }
+        } catch (e) {
+          console.warn('API Endpoint failed, trying next...', e);
+        }
       }
 
-      recentSection.style.display = "block";
-      recentTagsContainer.innerHTML = "";
+      // iTunes Fallback
+      try {
+        const itunesRes = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(query)}&media=music&limit=15`);
+        if (itunesRes.ok) {
+          const itunesData = await itunesRes.json();
+          if (itunesData.results && itunesData.results.length > 0) {
+            return itunesData.results.map(item => ({
+              id: item.trackId,
+              title: cleanText(item.trackName),
+              artist: cleanText(item.artistName || 'Unknown Artist'),
+              image: item.artworkUrl100?.replace('100x100bb', '300x300bb') || '',
+              audio: item.previewUrl
+            }));
+          }
+        }
+      } catch (e) {}
 
-      recents.forEach(query => {
-        const chip = document.createElement("button");
-        chip.className = "recent-chip";
-        chip.textContent = `🕒 ${query}`;
-        chip.addEventListener("click", () => {
-          searchInput.value = query;
-          searchAndPlay(query);
-        });
-        recentTagsContainer.appendChild(chip);
+      return [];
+    }
+
+    // SPOTIFY-LIKE "MILTE JULTE SONG" RECOMMENDATION GENERATOR
+    async function loadSimilarSongs(currentSong) {
+      if (isFetchingRecommendations || !currentSong) return;
+      isFetchingRecommendations = true;
+
+      try {
+        if (currentSong.id) {
+          const recUrl = `https://saavn.dev/api/songs/${currentSong.id}/suggestions?limit=10`;
+          const res = await fetch(recUrl);
+          if (res.ok) {
+            const json = await res.json();
+            const recs = json?.data || [];
+            if (recs.length > 0) {
+              appendNewUniqueSongs(formatSongsData(recs));
+              isFetchingRecommendations = false;
+              return;
+            }
+          }
+        }
+
+        // Fallback: Fetch tracks by primary artist name
+        const primaryArtist = currentSong.artist.split(/[,&]/)[0].trim();
+        if (primaryArtist && primaryArtist !== 'Unknown Artist') {
+          const artistSongs = await fetchSongs(primaryArtist);
+          if (artistSongs.length > 0) {
+            appendNewUniqueSongs(artistSongs);
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to load similar songs:', e);
+      }
+      
+      isFetchingRecommendations = false;
+    }
+
+    // Comprehensive Artist Name Extractor
+    function extractArtistName(item) {
+      // 1. Array of primary artist objects
+      if (item.artists && Array.isArray(item.artists.primary) && item.artists.primary.length > 0) {
+        return item.artists.primary.map(a => a.name).join(', ');
+      }
+      if (item.artists && Array.isArray(item.artists.all) && item.artists.all.length > 0) {
+        return item.artists.all.map(a => a.name).join(', ');
+      }
+
+      // 2. Direct string fields
+      if (typeof item.primaryArtists === 'string' && item.primaryArtists.trim() !== '') {
+        return item.primaryArtists;
+      }
+      if (typeof item.artist === 'string' && item.artist.trim() !== '') {
+        return item.artist;
+      }
+      if (typeof item.artistName === 'string' && item.artistName.trim() !== '') {
+        return item.artistName;
+      }
+
+      // 3. Array under primaryArtists or artists
+      if (Array.isArray(item.primaryArtists) && item.primaryArtists.length > 0) {
+        return item.primaryArtists.map(a => typeof a === 'string' ? a : a.name).join(', ');
+      }
+
+      // 4. Fallback: subtitle or singers field
+      if (item.subtitle && typeof item.subtitle === 'string' && item.subtitle.trim() !== '') {
+        return item.subtitle;
+      }
+      if (item.more_info && item.more_info.singers) {
+        return item.more_info.singers;
+      }
+
+      return 'Unknown Artist';
+    }
+
+    function formatSongsData(items) {
+      return items.map(item => {
+        let img = '';
+        if (Array.isArray(item.image)) {
+          img = item.image[item.image.length - 1]?.url || item.image[0]?.url || '';
+        } else if (typeof item.image === 'string') {
+          img = item.image;
+        }
+
+        let audio = '';
+        if (Array.isArray(item.downloadUrl)) {
+          audio = item.downloadUrl[item.downloadUrl.length - 1]?.url || item.downloadUrl[0]?.url || '';
+        } else if (typeof item.url === 'string') {
+          audio = item.url;
+        }
+
+        const rawTitle = item.name || item.title || 'Unknown Title';
+        const rawArtist = extractArtistName(item);
+
+        return {
+          id: item.id || '',
+          title: cleanText(rawTitle),
+          artist: cleanText(rawArtist),
+          image: img || 'https://via.placeholder.com/150',
+          audio: audio
+        };
+      }).filter(s => s.audio);
+    }
+
+    function appendNewUniqueSongs(newSongs) {
+      const existingTitles = new Set(currentPlaylist.map(s => s.title.toLowerCase()));
+      const uniqueNewSongs = newSongs.filter(s => !existingTitles.has(s.title.toLowerCase()));
+
+      if (uniqueNewSongs.length > 0) {
+        currentPlaylist = [...currentPlaylist, ...uniqueNewSongs];
+        renderTracks();
+        status.textContent = `✨ Added ${uniqueNewSongs.length} similar songs to your queue!`;
+      }
+    }
+
+    function renderTracks() {
+      trackList.innerHTML = '';
+      currentPlaylist.forEach((song, index) => {
+        const card = document.createElement('div');
+        const isActive = index === currentIndex;
+        card.className = `track-card ${isActive ? 'active' : ''}`;
+        
+        card.innerHTML = `
+          <img class="track-img" src="${song.image}" alt="${song.title}" />
+          <div class="track-info">
+            <div class="track-title">${escapeHtml(song.title)}</div>
+            <div class="track-artist">👤 ${escapeHtml(song.artist)}</div>
+          </div>
+          <div class="play-badge">${isActive ? '🔊 PLAYING' : '▶'}</div>
+        `;
+
+        card.onclick = () => {
+          currentIndex = index;
+          playSongAtIndex(currentIndex);
+          loadSimilarSongs(song);
+        };
+
+        trackList.appendChild(card);
       });
     }
 
-    // Fetch Video ID using Multi-Server System
-    async function fetchVideoResults(query) {
-      for (let serverUrl of apiServers) {
-        try {
-          const res = await fetch(serverUrl + encodeURIComponent(query));
-          if (!res.ok) continue;
-          
-          const data = await res.json();
-          let items = data.items || data;
-          
-          // Filter out videos
-          let videos = items.filter(item => item.url || item.videoId || item.id);
-          if (videos.length > 0) {
-            return videos.slice(0, 3).map(v => {
-              let id = v.videoId || v.id;
-              if (!id && v.url) {
-                id = v.url.replace("/watch?v=", "");
-              }
-              return {
-                title: v.title,
-                id: id
-              };
-            });
-          }
-        } catch (e) {
-          console.warn("Server failed, trying next...", serverUrl);
-        }
-      }
-      return null;
+    function playSongAtIndex(index) {
+      const song = currentPlaylist[index];
+      if (!song) return;
+
+      playerImg.src = song.image;
+      playerTitle.textContent = song.title;
+      playerArtist.textContent = `🎤 ${song.artist}`;
+      audioPlayer.src = song.audio;
+      playerBar.style.display = 'flex';
+
+      audioPlayer.play().catch(e => console.log('Autoplay policy error:', e));
+      renderTracks();
     }
 
-    // Search and Render Working YouTube Songs
-    async function searchAndPlay(query) {
-      if (!query.trim()) return;
-
-      saveRecentSearch(query);
-      statusMsg.textContent = `Finding songs for "${query}"...`;
-      resultsContainer.innerHTML = "";
-
-      const videos = await fetchVideoResults(query);
-
-      if (videos && videos.length > 0) {
-        statusMsg.textContent = `Top Results for "${query}":`;
-        
-        videos.forEach(video => {
-          if (!video.id) return;
-          const songCard = document.createElement("div");
-          songCard.className = "song-card";
-
-          songCard.innerHTML = `
-            <div class="song-title">▶ ${video.title}</div>
-            <iframe 
-              class="youtube-player" 
-              src="https://www.youtube-nocookie.com/embed/${video.id}" 
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-              allowfullscreen>
-            </iframe>
-          `;
-          resultsContainer.appendChild(songCard);
-        });
-      } else {
-        statusMsg.textContent = `Could not load songs for "${query}". Try again.`;
-      }
+    // Helper to decode HTML entities like &quot; or &amp;
+    function cleanText(str) {
+      if (!str) return '';
+      const txt = document.createElement('textarea');
+      txt.innerHTML = str;
+      return txt.value;
     }
 
-    // Load chips on startup
-    renderRecentChips();
+    function escapeHtml(str) {
+      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    }
 
-    // Event Listeners
-    searchBtn.addEventListener("click", () => {
-      searchAndPlay(searchInput.value);
-    });
-
-    searchInput.addEventListener("keypress", (e) => {
-      if (e.key === "Enter") {
-        searchAndPlay(searchInput.value);
-      }
-    });
+    // Initial search load
+    handleSearch();
   </script>
-
 </body>
 </html>
