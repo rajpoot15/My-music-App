@@ -166,7 +166,7 @@
     }
 
     .track-artist {
-      font-size: 0.8rem;
+      font-size: 0.82rem;
       color: var(--subtext);
       margin-top: 4px;
       white-space: nowrap;
@@ -224,9 +224,12 @@
     }
 
     .player-artist {
-      font-size: 0.75rem;
+      font-size: 0.78rem;
       color: var(--primary);
       margin-top: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     audio {
@@ -243,15 +246,15 @@
   </header>
 
   <div class="search-box">
-    <input type="text" id="searchInput" placeholder="Search song or artist..." value="Supreme Shubh" />
+    <input type="text" id="searchInput" placeholder="Search song or artist..." value="Faded Alan Walker" />
     <button class="search-btn" onclick="handleSearch()">Search</button>
   </div>
 
   <div class="tags">
+    <div class="tag" onclick="quickSearch('Faded Alan Walker')">🎧 Faded - Alan Walker</div>
     <div class="tag" onclick="quickSearch('Supreme Shubh')">🔥 Supreme - Shubh</div>
     <div class="tag" onclick="quickSearch('Karan Aujla')">🎤 Karan Aujla</div>
     <div class="tag" onclick="quickSearch('Sidhu Moosewala')">👑 Sidhu Moosewala</div>
-    <div class="tag" onclick="quickSearch('Softly Ikky')">🎶 Softly - Karan Aujla</div>
   </div>
 
   <div id="status" class="status">Tap search or select a tag to start your playlist.</div>
@@ -290,14 +293,12 @@
       if (e.key === 'Enter') handleSearch();
     });
 
-    // 1. AUTO-PLAY NEXT TRACK WHEN CURRENT SONG ENDS
+    // AUTO-PLAY NEXT TRACK WHEN CURRENT SONG ENDS
     audioPlayer.addEventListener('ended', async () => {
       if (currentIndex + 1 < currentPlaylist.length) {
-        // Play next song in queue
         currentIndex++;
         playSongAtIndex(currentIndex);
       } else {
-        // Reached end of current list -> Auto-generate "Milte Julte Songs" (Spotify Radio)
         status.textContent = '✨ Generating similar songs for autoplay...';
         await loadSimilarSongs(currentPlaylist[currentIndex]);
         
@@ -364,8 +365,8 @@
           if (itunesData.results && itunesData.results.length > 0) {
             return itunesData.results.map(item => ({
               id: item.trackId,
-              title: item.trackName,
-              artist: item.artistName,
+              title: cleanText(item.trackName),
+              artist: cleanText(item.artistName || 'Unknown Artist'),
               image: item.artworkUrl100?.replace('100x100bb', '300x300bb') || '',
               audio: item.previewUrl
             }));
@@ -376,13 +377,12 @@
       return [];
     }
 
-    // 2. SPOTIFY-LIKE "MILTE JULTE SONG" RECOMMENDATION GENERATOR
+    // SPOTIFY-LIKE "MILTE JULTE SONG" RECOMMENDATION GENERATOR
     async function loadSimilarSongs(currentSong) {
       if (isFetchingRecommendations || !currentSong) return;
       isFetchingRecommendations = true;
 
       try {
-        // Try song recommendations API by Song ID
         if (currentSong.id) {
           const recUrl = `https://saavn.dev/api/songs/${currentSong.id}/suggestions?limit=10`;
           const res = await fetch(recUrl);
@@ -397,17 +397,56 @@
           }
         }
 
-        // Fallback: Fetch more tracks by primary artist name
+        // Fallback: Fetch tracks by primary artist name
         const primaryArtist = currentSong.artist.split(/[,&]/)[0].trim();
-        const artistSongs = await fetchSongs(primaryArtist);
-        if (artistSongs.length > 0) {
-          appendNewUniqueSongs(artistSongs);
+        if (primaryArtist && primaryArtist !== 'Unknown Artist') {
+          const artistSongs = await fetchSongs(primaryArtist);
+          if (artistSongs.length > 0) {
+            appendNewUniqueSongs(artistSongs);
+          }
         }
       } catch (e) {
         console.warn('Failed to load similar songs:', e);
       }
       
       isFetchingRecommendations = false;
+    }
+
+    // Comprehensive Artist Name Extractor
+    function extractArtistName(item) {
+      // 1. Array of primary artist objects
+      if (item.artists && Array.isArray(item.artists.primary) && item.artists.primary.length > 0) {
+        return item.artists.primary.map(a => a.name).join(', ');
+      }
+      if (item.artists && Array.isArray(item.artists.all) && item.artists.all.length > 0) {
+        return item.artists.all.map(a => a.name).join(', ');
+      }
+
+      // 2. Direct string fields
+      if (typeof item.primaryArtists === 'string' && item.primaryArtists.trim() !== '') {
+        return item.primaryArtists;
+      }
+      if (typeof item.artist === 'string' && item.artist.trim() !== '') {
+        return item.artist;
+      }
+      if (typeof item.artistName === 'string' && item.artistName.trim() !== '') {
+        return item.artistName;
+      }
+
+      // 3. Array under primaryArtists or artists
+      if (Array.isArray(item.primaryArtists) && item.primaryArtists.length > 0) {
+        return item.primaryArtists.map(a => typeof a === 'string' ? a : a.name).join(', ');
+      }
+
+      // 4. Fallback: subtitle or singers field
+      if (item.subtitle && typeof item.subtitle === 'string' && item.subtitle.trim() !== '') {
+        return item.subtitle;
+      }
+      if (item.more_info && item.more_info.singers) {
+        return item.more_info.singers;
+      }
+
+      return 'Unknown Artist';
     }
 
     function formatSongsData(items) {
@@ -426,10 +465,13 @@
           audio = item.url;
         }
 
+        const rawTitle = item.name || item.title || 'Unknown Title';
+        const rawArtist = extractArtistName(item);
+
         return {
           id: item.id || '',
-          title: item.name || item.title || 'Unknown Title',
-          artist: item.primaryArtists || item.artist || 'Unknown Artist',
+          title: cleanText(rawTitle),
+          artist: cleanText(rawArtist),
           image: img || 'https://via.placeholder.com/150',
           audio: audio
         };
@@ -458,7 +500,7 @@
           <img class="track-img" src="${song.image}" alt="${song.title}" />
           <div class="track-info">
             <div class="track-title">${escapeHtml(song.title)}</div>
-            <div class="track-artist">${escapeHtml(song.artist)}</div>
+            <div class="track-artist">👤 ${escapeHtml(song.artist)}</div>
           </div>
           <div class="play-badge">${isActive ? '🔊 PLAYING' : '▶'}</div>
         `;
@@ -466,7 +508,6 @@
         card.onclick = () => {
           currentIndex = index;
           playSongAtIndex(currentIndex);
-          // Automatically pull similar songs in background when a song is tapped
           loadSimilarSongs(song);
         };
 
@@ -480,12 +521,20 @@
 
       playerImg.src = song.image;
       playerTitle.textContent = song.title;
-      playerArtist.textContent = `▶ ${song.artist}`;
+      playerArtist.textContent = `🎤 ${song.artist}`;
       audioPlayer.src = song.audio;
       playerBar.style.display = 'flex';
 
       audioPlayer.play().catch(e => console.log('Autoplay policy error:', e));
-      renderTracks(); // Update active highlight ring
+      renderTracks();
+    }
+
+    // Helper to decode HTML entities like &quot; or &amp;
+    function cleanText(str) {
+      if (!str) return '';
+      const txt = document.createElement('textarea');
+      txt.innerHTML = str;
+      return txt.value;
     }
 
     function escapeHtml(str) {
