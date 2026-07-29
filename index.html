@@ -6,7 +6,7 @@
   <title>My Mobile Music Player</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #121212; color: #fff; padding: 16px; padding-bottom: 120px; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #121212; color: #fff; padding: 16px; padding-bottom: 250px; }
     h1 { margin-bottom: 12px; font-size: 22px; text-align: center; color: #1db954; }
     
     .search-box { display: flex; gap: 8px; margin-bottom: 16px; }
@@ -16,85 +16,102 @@
     .track-list { display: flex; flex-direction: column; gap: 10px; }
     .track-card { display: flex; align-items: center; gap: 12px; background: #1e1e1e; padding: 10px; border-radius: 8px; cursor: pointer; }
     .track-card:active { background: #282828; }
-    .track-card img { width: 50px; height: 50px; border-radius: 6px; object-fit: cover; }
+    .track-card img { width: 60px; height: 45px; border-radius: 6px; object-fit: cover; }
     .track-info { flex: 1; min-width: 0; }
     .track-title { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .track-artist { font-size: 12px; color: #aaa; margin-top: 2px; }
-    
-    .player-bar { position: fixed; bottom: 0; left: 0; right: 0; background: #181818; border-top: 1px solid #282828; padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 -4px 12px rgba(0,0,0,0.5); }
-    .now-playing { font-size: 13px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #1db954; font-weight: 500; }
-    audio { width: 100%; height: 36px; border-radius: 20px; outline: none; }
+
+    .player-bar { position: fixed; bottom: 0; left: 0; right: 0; background: #181818; border-top: 1px solid #282828; padding: 10px; display: flex; flex-direction: column; align-items: center; gap: 8px; box-shadow: 0 -4px 12px rgba(0,0,0,0.5); z-index: 100; }
+    .now-playing { font-size: 13px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #1db954; font-weight: 500; width: 100%; }
+    .iframe-container { width: 100%; max-width: 400px; height: 180px; border-radius: 10px; overflow: hidden; background: #000; }
+    iframe { width: 100%; height: 100%; border: none; }
   </style>
 </head>
 <body>
   <h1>🎵 My Music Player</h1>
 
   <div class="search-box">
-    <input type="text" id="searchInput" placeholder="Search songs or artists...">
+    <input type="text" id="searchInput" placeholder="Search songs, artists, or videos...">
     <button onclick="searchMusic()">Search</button>
   </div>
 
-  <div id="tracks" class="track-list">Loading tracks...</div>
+  <div id="tracks" class="track-list">Loading full songs...</div>
 
   <div class="player-bar">
-    <div id="nowPlaying" class="now-playing">Tap any track to play</div>
-    <audio id="audioPlayer" controls></audio>
+    <div id="nowPlaying" class="now-playing">Tap any track to play full song</div>
+    <div class="iframe-container">
+      <iframe id="ytPlayer" src="" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+    </div>
   </div>
 
   <script>
+    const INSTANCES = [
+      'https://inv.nadeko.net',
+      'https://invidious.nerdvpn.de',
+      'https://yt.chocolatemoo53.com',
+      'https://invidious.tiekoetter.com'
+    ];
+
     const tracksContainer = document.getElementById('tracks');
-    const audioPlayer = document.getElementById('audioPlayer');
+    const ytPlayer = document.getElementById('ytPlayer');
     const nowPlaying = document.getElementById('nowPlaying');
     const searchInput = document.getElementById('searchInput');
 
-    async function searchMusic(query = null) {
-      const searchTerm = query || searchInput.value.trim() || 'Top Songs';
-      tracksContainer.innerHTML = '<p style="text-align:center; color:#aaa;">Searching tracks...</p>';
-
-      try {
-        const url = `https://itunes.apple.com/search?term=${encodeURIComponent(searchTerm)}&media=music&limit=15`;
-        const response = await fetch(url);
-        const data = await response.json();
-
-        if (!data.results || data.results.length === 0) {
-          tracksContainer.innerHTML = '<p style="text-align:center; color:#aaa;">No tracks found. Try another search!</p>';
-          return;
+    async function fetchFromInvidious(query) {
+      for (const instance of INSTANCES) {
+        try {
+          const res = await fetch(`${instance}/api/v1/search?q=${encodeURIComponent(query)}&type=video`);
+          if (res.ok) {
+            const data = await res.json();
+            if (Array.isArray(data) && data.length > 0) return data;
+          }
+        } catch (e) {
+          // Try next public instance if one fails
         }
-
-        tracksContainer.innerHTML = '';
-        data.results.forEach(track => {
-          if (!track.previewUrl) return;
-
-          const card = document.createElement('div');
-          card.className = 'track-card';
-          const artwork = track.artworkUrl100 || track.artworkUrl60;
-          
-          card.innerHTML = `
-            <img src="${artwork}" alt="${track.trackName}">
-            <div class="track-info">
-              <div class="track-title">${track.trackName}</div>
-              <div class="track-artist">${track.artistName}</div>
-            </div>
-          `;
-          card.onclick = () => {
-            audioPlayer.src = track.previewUrl;
-            audioPlayer.play();
-            nowPlaying.textContent = `▶ ${track.trackName} - ${track.artistName}`;
-          };
-          tracksContainer.appendChild(card);
-        });
-      } catch (err) {
-        tracksContainer.innerHTML = '<p style="color:#ff5555; text-align:center;">Failed to load tracks. Please check internet connection.</p>';
       }
+      return null;
     }
 
-    // Allow pressing Enter in search box
+    async function searchMusic(query = null) {
+      const searchTerm = query || searchInput.value.trim() || 'Supreme Shubh song';
+      tracksContainer.innerHTML = '<p style="text-align:center; color:#aaa;">Searching YouTube...</p>';
+
+      const results = await fetchFromInvidious(searchTerm);
+
+      if (!results || results.length === 0) {
+        tracksContainer.innerHTML = '<p style="text-align:center; color:#aaa;">No tracks found. Please try another search!</p>';
+        return;
+      }
+
+      tracksContainer.innerHTML = '';
+      results.forEach(video => {
+        if (!video.videoId) return;
+
+        const card = document.createElement('div');
+        card.className = 'track-card';
+        const thumbnail = (video.videoThumbnails && video.videoThumbnails[0]) ? video.videoThumbnails[0].url : 'https://via.placeholder.com/60x45?text=Music';
+        
+        card.innerHTML = `
+          <img src="${thumbnail}" alt="${video.title}">
+          <div class="track-info">
+            <div class="track-title">${video.title}</div>
+            <div class="track-artist">${video.author || 'Artist'}</div>
+          </div>
+        `;
+        card.onclick = () => {
+          ytPlayer.src = `https://www.youtube-nocookie.com/embed/${video.videoId}?autoplay=1&enablejsapi=1`;
+          nowPlaying.textContent = `▶ ${video.title}`;
+        };
+        tracksContainer.appendChild(card);
+      });
+    }
+
     searchInput.addEventListener('keypress', (e) => {
       if (e.key === 'Enter') searchMusic();
     });
 
-    // Load initial music on page load
-    searchMusic('Popular Hits');
+    // Default initial search
+    searchMusic('Supreme Shubh song');
   </script>
 </body>
 </html>
