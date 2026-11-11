@@ -69,9 +69,13 @@
   <script src="https://www.youtube.com/iframe_api"></script>
   <script>
     // ====== SETTINGS ======
-    const YT_API_KEY = 'YAHAN_APNI_API_KEY_DAALO';
+    const YT_API_KEY = 'AIzaSyBNe9Fgjs_5uJYiIrutVXsTzdzTZ5hoEsk';
     const REGION = 'IN';             // trending kis desh ka
-    const NEW_CHANNEL_IDS = [];      // optional: artist/label channel IDs (UCxxxx...) -> "New" tab ke liye
+    const NEW_CHANNEL_IDS = [         // "New" tab: in channels ke latest uploads apne aap aate hain
+      'UCq-Fj5jknLsUf-MWSy4_brA',   // T-Series
+      'UCOsyDsO5tIt-VZ1iwjdQmew'    // Speed Records (Punjabi)
+      // aur channels yahan add karo, har ID ke baad comma
+    ];
 
     let currentPlaylist = [], currentIndex = -1, myList = [];
     let ytPlayer = null, ytReady = false, pendingPlay = null, retryList = [], failStreak = 0;
