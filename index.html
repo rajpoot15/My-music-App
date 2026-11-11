@@ -7,12 +7,12 @@
   <style>
     :root { --bg:#121212; --card:#1e1e1e; --primary:#1db954; --text:#fff; --subtext:#b3b3b3; }
     * { box-sizing:border-box; margin:0; padding:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
-    body { background:var(--bg); color:var(--text); padding:16px; padding-bottom:320px; max-width:600px; margin:0 auto; }
+    body { background:var(--bg); color:var(--text); padding:16px; padding-bottom:340px; max-width:600px; margin:0 auto; }
     header { text-align:center; margin-bottom:18px; }
     h1 { color:var(--primary); font-size:1.8rem; }
     
-    .toolbar { display:flex; justify-content:space-between; align-items:center; background:var(--card); padding:8px 14px; border-radius:20px; margin-bottom:14px; font-size:0.85rem; border:1px solid #333; gap:10px; flex-wrap:wrap; }
-    .toggle-switch { display:flex; align-items:center; gap:6px; cursor:pointer; color:var(--primary); font-weight:bold; }
+    .toolbar { display:flex; justify-content:center; align-items:center; background:var(--card); padding:12px 16px; border-radius:25px; margin-bottom:14px; font-size:0.9rem; border:1px solid #333; }
+    .toggle-switch { display:flex; align-items:center; gap:8px; cursor:pointer; color:var(--primary); font-weight:bold; }
 
     .search-box { display:flex; gap:10px; margin-bottom:14px; }
     input[type="text"] { flex:1; padding:12px 16px; border-radius:25px; border:1px solid #333; background:var(--card); color:var(--text); font-size:1rem; outline:none; }
@@ -36,23 +36,24 @@
     .btn.alt { background:#333; color:#fff; }
     .open-yt-btn { background:#ff0000; color:#fff; text-decoration:none; padding:4px 10px; border-radius:12px; font-size:0.75rem; font-weight:bold; display:inline-block; margin-top:4px; }
     audio { width:100%; margin-top:6px; }
-    .yt-wrap { position:relative; width:100%; aspect-ratio:16/9; background:#000; border-radius:10px; overflow:hidden; display:none; }
+    .yt-wrap { position:relative; width:100%; aspect-ratio:16/9; background:#000; border-radius:10px; overflow:hidden; }
     .yt-wrap iframe, .yt-wrap > div { position:absolute; inset:0; width:100%; height:100%; }
-    footer { text-align:center; margin-top:40px; color:var(--subtext); font-size:0.8rem; padding-bottom:20px; }
+
+    /* Improved Sleek Footer */
+    footer { text-align:center; margin:40px 0 20px; }
+    .footer-badge { display:inline-flex; align-items:center; gap:6px; background:var(--card); border:1px solid #2a2a2a; padding:10px 20px; border-radius:30px; color:var(--subtext); font-size:0.85rem; box-shadow:0 4px 12px rgba(0,0,0,0.3); }
+    .footer-badge span { color:var(--primary); font-weight:bold; }
   </style>
 </head>
 <body>
 
   <header><h1>🎵 My Music Player</h1></header>
 
+  <!-- Sirf Ek Single Toggle Switch -->
   <div class="toolbar">
     <label class="toggle-switch">
-      <input type="checkbox" id="adBlockToggle" checked onchange="toggleToggles()" /> 
-      <span id="toggleText">🛡️ Ad-Free</span>
-    </label>
-    <label class="toggle-switch" style="color:#fff;">
-      <input type="checkbox" id="audioOnlyToggle" checked onchange="toggleToggles()" /> 
-      🎧 Audio Only (Lock)
+      <input type="checkbox" id="adBlockToggle" checked onchange="toggleMode()" /> 
+      <span id="toggleText">🛡️ Ad-Free & Audio-Only Mode (ON)</span>
     </label>
   </div>
 
@@ -86,8 +87,12 @@
     <div class="tag" onclick="quickSearch('Mika Singh')">🎤 Mika Singh</div>
   </div>
 
-  <div id="status" class="status">Dono toggles ON rakho taaki Ad-free aur background play chale!</div>
+  <div id="status" class="status">Gaana chune ke liye kisi bhi song par tap karein:</div>
   <div id="trackList" class="track-list"></div>
+
+  <footer>
+    <div class="footer-badge">⚡ Crafted with <span>Rajpøøt</span> Branding</div>
+  </footer>
 
   <div id="playerBar" class="player-bar">
     <div class="player-header">
@@ -101,30 +106,28 @@
       <button class="btn" onclick="playNext()">Next ⏭</button>
       <button class="btn alt" onclick="closePlayer()" aria-label="Close player">✕</button>
     </div>
-    <div class="yt-wrap" id="ytWrapContainer"><div id="ytPlayer"></div></div>
+    <div class="yt-wrap" id="ytWrapContainer" style="display:none;"><div id="ytPlayer"></div></div>
     <audio id="audioPlayer" controls playsinline></audio>
   </div>
-
-  <footer>Made by Rajpøøt</footer>
 
   <script src="https://www.youtube.com/iframe_api"></script>
   <script>
     const YT_API_KEY = 'AIzaSyBNe9Fgjs_5uJYiIrutVXsTzdzTZ5hoEsk';
     const REGION = 'IN';
-    let adBlockEnabled = true;
-    let audioOnlyMode = true;
+    let adBlockEnabled = true; // Default ON for clean experience
 
-    function toggleToggles() {
+    function toggleMode() {
       adBlockEnabled = $('adBlockToggle').checked;
-      audioOnlyMode = $('audioOnlyToggle').checked;
       const ytWrap = $('ytWrapContainer');
       
-      if (adBlockEnabled && audioOnlyMode) {
+      if (adBlockEnabled) {
         ytWrap.style.display = 'none';
-        status.textContent = '🛡️ Ad-Free & Background Mode Active (0 Ads)';
+        $('toggleText').textContent = '🛡️ Ad-Free & Audio-Only Mode (ON)';
+        status.textContent = '🛡️ Ad-Free & Background Mode Active';
       } else {
         ytWrap.style.display = 'block';
-        status.textContent = '⚠️ Dono toggles ON karo taaki ads na aaye!';
+        $('toggleText').textContent = '⚠️ Standard Mode (Ads & Video enabled)';
+        status.textContent = '▶️ Video Player Mode ON';
       }
     }
 
@@ -194,7 +197,7 @@
           artist: item['im:artist'].label,
           image: item['im:image'][2].label
         }));
-        showList(tracks, '🔥 Trending (Ad-Free)');
+        showList(tracks, '🔥 Trending');
       } catch (e) { status.textContent = 'Trending load nahi hua.'; }
     }
 
@@ -209,7 +212,7 @@
           artist: item['im:artist'].label,
           image: item['im:image'][2].label
         }));
-        showList(tracks, '🆕 New Releases (Ad-Free)');
+        showList(tracks, '🆕 New Releases');
       } catch (e) { status.textContent = 'New releases load nahi hue.'; }
     }
 
@@ -309,8 +312,8 @@
       
       if (song.audio) { playAudioStream(song.audio, song); return; }
 
-      // STICKY CHECK: DONO TOGGLES ON HONGE TABHI PIPED STREAM (0 ADS) MILEGA
-      if (adBlockEnabled && audioOnlyMode) {
+      // Agar toggle ON hai, toh Piped API se clean ad-free audio stream fetch karega
+      if (adBlockEnabled) {
         status.textContent = 'Loading ad-free stream...';
         try {
           const ids = await findVideoIds(song);
@@ -333,7 +336,7 @@
         }
       }
 
-      // Agar koi ek bhi toggle off hua, tabhi iframe video player khulega (jisme ads aa sakte hain)
+      // Agar toggle OFF hai, toh standard video player chalega
       stopAudio();
       if (!ytReady) { pendingPlay = index; status.textContent = 'Loading player...'; return; }
       pendingPlay = null;
