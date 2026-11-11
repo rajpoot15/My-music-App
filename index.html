@@ -30,6 +30,7 @@
     .player-header img { width:48px; height:48px; border-radius:6px; }
     .btn { background:var(--primary); color:#000; border:none; padding:6px 14px; border-radius:15px; font-weight:bold; cursor:pointer; }
     .btn.alt { background:#333; color:#fff; }
+    audio { width:100%; }
     .yt-wrap { position:relative; width:100%; aspect-ratio:16/9; background:#000; border-radius:10px; overflow:hidden; }
     .yt-wrap iframe, .yt-wrap > div { position:absolute; inset:0; width:100%; height:100%; }
   </style>
@@ -46,7 +47,7 @@
   <div class="tags">
     <div class="tag" onclick="loadTrending()">🔥 Trending</div>
     <div class="tag" id="newTag" style="display:none" onclick="loadNew()">🆕 New</div>
-    <div class="tag" onclick="loadMyList()">📚 My List</div>
+    <div class="tag" onclick="loadJamendo()">🎧 Free Music (screen lock pe chale)</div>
     <div class="tag" onclick="quickSearch('Karan Aujla')">🎤 Karan Aujla</div>
     <div class="tag" onclick="quickSearch('Diljit Dosanjh')">🎤 Diljit Dosanjh</div>
     <div class="tag" onclick="quickSearch('AP Dhillon')">🎤 AP Dhillon</div>
@@ -83,12 +84,13 @@
       <button class="btn" onclick="playNext()">Next ⏭</button>
     </div>
     <div class="yt-wrap"><div id="ytPlayer"></div></div>
+    <audio id="audioPlayer" controls playsinline style="display:none"></audio>
   </div>
 
   <script src="https://www.youtube.com/iframe_api"></script>
   <script>
     // ====== SETTINGS ======
-    const YT_API_KEY = 'AIzaSyBNe9Fgjs_5uJYiIrutVXsTzdzTZ5hoEsk';
+    const YT_API_KEY = 'YAHAN_APNI_API_KEY_DAALO';
     const REGION = 'IN';             // trending kis desh ka
     const NEW_CHANNEL_IDS = [         // "New" tab: in channels ke latest uploads apne aap aate hain
       'UCq-Fj5jknLsUf-MWSy4_brA',   // T-Series
@@ -107,6 +109,10 @@
       ['@bpraak', 'praak'], ['@mikasingh', 'mika'], ['@shubhworldwide', 'shubh']
     ];
 
+    // Jamendo free API key (devportal.jamendo.com par free account se milti hai)
+    const JAMENDO_CLIENT_ID = 'YAHAN_JAMENDO_KEY_DAALO';
+    let mode = 'itunes';   // 'itunes' ya 'jamendo' (search kahan se ho)
+
     let currentPlaylist = [], currentIndex = -1, myList = [];
     let ytPlayer = null, ytReady = false, pendingPlay = null, retryList = [], failStreak = 0;
 
@@ -114,6 +120,7 @@
     const searchInput = $('searchInput'), trackList = $('trackList'), status = $('status');
     const playerBar = $('playerBar'), playerImg = $('playerImg');
     const playerTitle = $('playerTitle'), playerArtist = $('playerArtist');
+    const audioEl = $('audioPlayer');
     const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     const norm = s => String(s).toLowerCase().replace(/[^a-z0-9\u0900-\u097f\u0a00-\u0a7f]+/g, ' ').trim();
 
@@ -163,6 +170,7 @@
 
     // Trending music: 1 unit me 40 songs, 3 ghante cache
     async function loadTrending() {
+      mode = 'itunes';
       if (!hasKey()) { status.textContent = 'Pehle code mein YouTube API key daalo.'; return; }
       status.textContent = 'Loading trending...'; trackList.innerHTML = '';
       try {
@@ -187,6 +195,7 @@
       });
     }
     async function loadNew() {
+      mode = 'itunes';
       status.textContent = 'Loading new releases...'; trackList.innerHTML = '';
       try {
         const tracks = await withCache('new:' + NEW_CHANNEL_IDS.concat(NEW_CHANNEL_HANDLES).join(','), 3 * 3600e3, async () => {
@@ -208,6 +217,7 @@
 
     // My List: songs.json (quota zero)
     async function loadMyList() {
+      mode = 'itunes';
       const tracks = myList.map(m => ({ ...m, image: m.image || `https://i.ytimg.com/vi/${m.videoId}/mqdefault.jpg` }));
       showList(tracks, '📚 My List');
       if (!tracks.length) status.textContent = 'My List khali hai. songs.json mein songs daalo.';
@@ -215,10 +225,11 @@
     fetch('songs.json').then(r => r.json()).then(d => { myList = Array.isArray(d) ? d : []; }).catch(() => {});
 
     // Search: iTunes se naam/cover
-    function quickSearch(q) { searchInput.value = q; handleSearch(); }
+    function quickSearch(q) { mode = 'itunes'; searchInput.value = q; handleSearch(); }
     async function handleSearch() {
       const query = searchInput.value.trim();
       if (!query) return;
+      if (mode === 'jamendo') return loadJamendo(query);
       status.textContent = 'Searching...'; trackList.innerHTML = '';
       try {
         const res = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(query)}&media=music&entity=song&limit=25`);
@@ -260,12 +271,52 @@
       cacheSet(key, ids); return ids;
     }
 
+    // ====== Jamendo: free poore songs, <audio> se => screen lock par bhi chalte hain ======
+    async function loadJamendo(q) {
+      mode = 'jamendo';
+      if (JAMENDO_CLIENT_ID.startsWith('YAHAN')) { status.textContent = 'Pehle code mein Jamendo key daalo.'; return; }
+      status.textContent = 'Loading free music...'; trackList.innerHTML = '';
+      try {
+        const u = new URL('https://api.jamendo.com/v3.0/tracks/');
+        const p = { client_id: JAMENDO_CLIENT_ID, format: 'json', limit: 30, audioformat: 'mp32', imagesize: 300, ...(q ? { search: q } : { order: 'popularity_week' }) };
+        Object.entries(p).forEach(([k, v]) => u.searchParams.set(k, v));
+        const d = await (await fetch(u)).json();
+        const tracks = (d.results || []).filter(t => t.audio).map(t => ({ title: t.name, artist: t.artist_name, image: t.image, audio: t.audio }));
+        showList(tracks, '🎧 Free Music');
+        if (tracks.length) status.textContent += ' (search box se aur dhoondh sakte ho)';
+      } catch (e) { status.textContent = 'Free music load nahi hua (key ya internet check karo).'; console.error(e); }
+    }
+
+    function playAudio(song) {
+      try { if (ytReady) ytPlayer.pauseVideo(); } catch (e) {}
+      document.querySelector('.yt-wrap').style.display = 'none';
+      audioEl.style.display = 'block';
+      audioEl.src = song.audio;
+      audioEl.play().catch(e => console.log('play blocked', e));
+      status.textContent = 'Now playing (screen lock par bhi chalega)';
+      if ('mediaSession' in navigator) {
+        navigator.mediaSession.metadata = new MediaMetadata({ title: song.title, artist: song.artist, artwork: [{ src: song.image, sizes: '300x300' }] });
+        navigator.mediaSession.setActionHandler('play', () => audioEl.play());
+        navigator.mediaSession.setActionHandler('pause', () => audioEl.pause());
+        navigator.mediaSession.setActionHandler('nexttrack', playNext);
+        navigator.mediaSession.setActionHandler('previoustrack', playPrev);
+      }
+    }
+    function stopAudio() {
+      audioEl.pause(); audioEl.removeAttribute('src'); audioEl.style.display = 'none';
+      document.querySelector('.yt-wrap').style.display = '';
+    }
+    audioEl.addEventListener('ended', playNext);
+    audioEl.addEventListener('error', () => { if (audioEl.getAttribute('src')) { status.textContent = 'Ye track nahi chala, next chal raha hai...'; setTimeout(playNext, 800); } });
+
     // ====== Playback ======
     async function playSong(index) {
       const song = currentPlaylist[index]; if (!song) return;
       currentIndex = index;
       playerImg.src = song.image; playerTitle.textContent = song.title; playerArtist.textContent = song.artist;
       playerBar.style.display = 'flex'; renderTracks();
+      if (song.audio) { playAudio(song); return; }
+      stopAudio();
       if (!ytReady) { pendingPlay = index; status.textContent = 'Loading player...'; return; }
       pendingPlay = null;
       try {
