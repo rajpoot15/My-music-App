@@ -10,6 +10,10 @@
     body { background:var(--bg); color:var(--text); padding:16px; padding-bottom:320px; max-width:600px; margin:0 auto; }
     header { text-align:center; margin-bottom:18px; }
     h1 { color:var(--primary); font-size:1.8rem; }
+    
+    .toolbar { display:flex; justify-content:space-between; align-items:center; background:var(--card); padding:8px 14px; border-radius:20px; margin-bottom:14px; font-size:0.85rem; border:1px solid #333; gap:10px; flex-wrap:wrap; }
+    .toggle-switch { display:flex; align-items:center; gap:6px; cursor:pointer; color:var(--primary); font-weight:bold; }
+
     .search-box { display:flex; gap:10px; margin-bottom:14px; }
     input[type="text"] { flex:1; padding:12px 16px; border-radius:25px; border:1px solid #333; background:var(--card); color:var(--text); font-size:1rem; outline:none; }
     input[type="text"]:focus { border-color:var(--primary); }
@@ -31,7 +35,7 @@
     .btn { background:var(--primary); color:#000; border:none; padding:6px 14px; border-radius:15px; font-weight:bold; cursor:pointer; }
     .btn.alt { background:#333; color:#fff; }
     .open-yt-btn { background:#ff0000; color:#fff; text-decoration:none; padding:4px 10px; border-radius:12px; font-size:0.75rem; font-weight:bold; display:inline-block; margin-top:4px; }
-    audio { width:100%; }
+    audio { width:100%; margin-top:6px; }
     .yt-wrap { position:relative; width:100%; aspect-ratio:16/9; background:#000; border-radius:10px; overflow:hidden; }
     .yt-wrap iframe, .yt-wrap > div { position:absolute; inset:0; width:100%; height:100%; }
   </style>
@@ -40,6 +44,17 @@
 
   <header><h1>🎵 My Music Player</h1></header>
 
+  <div class="toolbar">
+    <label class="toggle-switch">
+      <input type="checkbox" id="adBlockToggle" checked onchange="toggleAdBlock()" /> 
+      <span id="toggleText">🛡️ Ad-Free (0 Units)</span>
+    </label>
+    <label class="toggle-switch" style="color:#fff;">
+      <input type="checkbox" id="audioOnlyToggle" onchange="toggleAudioOnly()" /> 
+      🎧 Audio Only (Screen Lock)
+    </label>
+  </div>
+
   <div class="search-box">
     <input type="text" id="searchInput" placeholder="Search song or artist..." />
     <button class="search-btn" onclick="handleSearch()">Search</button>
@@ -47,7 +62,7 @@
 
   <div class="tags">
     <div class="tag" onclick="loadTrending()">🔥 Trending</div>
-    <div class="tag" id="newTag" style="display:none" onclick="loadNew()">🆕 New</div>
+    <div class="tag" onclick="loadNew()">🆕 New</div>
     <div class="tag" onclick="quickSearch('Karan Aujla')">🎤 Karan Aujla</div>
     <div class="tag" onclick="quickSearch('Diljit Dosanjh')">🎤 Diljit Dosanjh</div>
     <div class="tag" onclick="quickSearch('AP Dhillon')">🎤 AP Dhillon</div>
@@ -70,7 +85,7 @@
     <div class="tag" onclick="quickSearch('Mika Singh')">🎤 Mika Singh</div>
   </div>
 
-  <div id="status" class="status">Initializing player...</div>
+  <div id="status" class="status">Ready. Select a song or tag below:</div>
   <div id="trackList" class="track-list"></div>
 
   <div id="playerBar" class="player-bar">
@@ -85,33 +100,35 @@
       <button class="btn" onclick="playNext()">Next ⏭</button>
       <button class="btn alt" onclick="closePlayer()" aria-label="Close player">✕</button>
     </div>
-    <div class="yt-wrap"><div id="ytPlayer"></div></div>
-    <audio id="audioPlayer" controls playsinline style="display:none"></audio>
+    <div class="yt-wrap" id="ytWrapContainer"><div id="ytPlayer"></div></div>
+    <audio id="audioPlayer" controls playsinline></audio>
   </div>
 
   <script src="https://www.youtube.com/iframe_api"></script>
   <script>
-    // ====== SETTINGS ======
     const YT_API_KEY = 'AIzaSyBNe9Fgjs_5uJYiIrutVXsTzdzTZ5hoEsk';
     const REGION = 'IN';
-    const NEW_CHANNEL_IDS = [
-      'UCq-Fj5jknLsUf-MWSy4_brA',   // T-Series
-      'UCOsyDsO5tIt-VZ1iwjdQmew',   // Speed Records
-      'UC3XBkDeCVXCoCofFgfUZXGw'    // Karan Aujla
-    ];
+    let adBlockEnabled = true;
+    let audioOnlyMode = false;
 
-    const NEW_CHANNEL_HANDLES = [
-      ['@diljitdosanjh', 'diljit'], ['@apdhillon', 'apdhillon'], ['@badboyshah', 'badshah'],
-      ['@arijitsingh', 'arijit'], ['@sidhumoosewalaofficial', 'sidhu'], ['@yoyohoneysingh', 'honey'],
-      ['@divine', 'divine'], ['@ammyvirk', 'ammy'], ['@jasminesandlas', 'jasmine'],
-      ['@nehakakkar', 'neha'], ['@atifaslam', 'atif'], ['@jubinnautiyal', 'jubin'],
-      ['@shreyaghoshal', 'shreya'], ['@sonunigam', 'sonu'], ['@gururandhawa', 'guru'],
-      ['@bpraak', 'praak'], ['@mikasingh', 'mika'], ['@shubhworldwide', 'shubh']
-    ];
+    function toggleAdBlock() {
+      adBlockEnabled = $('adBlockToggle').checked;
+      $('toggleText').textContent = adBlockEnabled ? '🛡️ Ad-Free (0 Units)' : '⚡ Google API';
+    }
 
-    const JAMENDO_CLIENT_ID = 'YAHAN_JAMENDO_KEY_DAALO';
+    function toggleAudioOnly() {
+      audioOnlyMode = $('audioOnlyToggle').checked;
+      const ytWrap = $('ytWrapContainer');
+      if (audioOnlyMode) {
+        ytWrap.style.display = 'none';
+        status.textContent = '🎧 Audio-Only Mode ON (Lock screen & Background active)';
+      } else {
+        ytWrap.style.display = 'block';
+        status.textContent = '▶️ Video Mode ON';
+      }
+    }
+
     let mode = 'itunes';
-
     let currentPlaylist = [], currentIndex = -1, myList = [];
     let ytPlayer = null, ytReady = false, pendingPlay = null, retryList = [], failStreak = 0;
     let currentVideoId = '';
@@ -145,17 +162,10 @@
     const hasKey = () => !YT_API_KEY.startsWith('YAHAN');
     const thumb = s => (s.thumbnails.medium || s.thumbnails.default || {}).url || '';
 
-    // ====== YouTube player ======
     window.onYouTubeIframeAPIReady = function () {
       ytPlayer = new YT.Player('ytPlayer', {
         width: '100%', height: '100%',
-        playerVars: { 
-          playsinline: 1, 
-          controls: 1,
-          rel: 0, 
-          showinfo: 1,
-          origin: window.location.origin 
-        },
+        playerVars: { playsinline: 1, controls: 1, rel: 0, showinfo: 1, origin: window.location.origin },
         events: {
           onReady: () => { ytReady = true; if (pendingPlay !== null) playSong(pendingPlay); },
           onStateChange: e => {
@@ -175,64 +185,43 @@
 
     async function loadTrending() {
       mode = 'itunes';
-      if (!hasKey()) { status.textContent = 'Pehle code mein YouTube API key daalo.'; return; }
       status.textContent = 'Loading trending...'; trackList.innerHTML = '';
       try {
-        const tracks = await withCache('trend:' + REGION, 3 * 3600e3, async () => {
-          const d = await ytGet('videos', { part: 'snippet,status', chart: 'mostPopular', videoCategoryId: '10', regionCode: REGION, maxResults: 40 });
-          return d.items.filter(v => v.status.embeddable).map(v => ({ title: v.snippet.title, artist: v.snippet.channelTitle, image: thumb(v.snippet), videoId: v.id }));
-        });
-        showList(tracks, '🔥 Trending');
-      } catch (e) { status.textContent = 'Trending load nahi hua (API key ya quota check karo).'; console.error(e); }
-    }
-
-    async function uploadsOf([handle, kw]) {
-      return withCache('h2:' + handle, 30 * 864e5, async () => {
-        try {
-          const d = await ytGet('channels', { part: 'snippet,contentDetails,statistics', forHandle: handle });
-          const c = d.items && d.items[0]; if (!c) return null;
-          const name = c.snippet.title.toLowerCase().replace(/[^a-z0-9]/g, '');
-          if (!name.includes(kw) || Number(c.statistics.subscriberCount || 0) < 200000) return null;
-          return c.contentDetails.relatedPlaylists.uploads;
-        } catch (e) { return null; }
-      });
+        const res = await fetch(`https://itunes.apple.com/in/rss/topsongs/limit=30/json`);
+        const data = await res.json();
+        const tracks = (data.feed.entry || []).map(item => ({
+          title: item['im:name'].label,
+          artist: item['im:artist'].label,
+          image: item['im:image'][2].label
+        }));
+        showList(tracks, '🔥 Trending (Ad-Free)');
+      } catch (e) { status.textContent = 'Trending load nahi hua.'; }
     }
 
     async function loadNew() {
       mode = 'itunes';
       status.textContent = 'Loading new releases...'; trackList.innerHTML = '';
       try {
-        const tracks = await withCache('new:' + NEW_CHANNEL_IDS.concat(NEW_CHANNEL_HANDLES).join(','), 3 * 3600e3, async () => {
-          const lists = NEW_CHANNEL_IDS.map(ch => 'UU' + ch.slice(2));
-          for (const h of NEW_CHANNEL_HANDLES) { const pl = await uploadsOf(h); if (pl) lists.push(pl); else console.warn('handle skip', h[0]); }
-          let all = [];
-          for (const pl of lists) {
-            try {
-              const d = await ytGet('playlistItems', { part: 'snippet', playlistId: pl, maxResults: 6 });
-              all = all.concat(d.items.filter(i => i.snippet.resourceId && !/^(Private|Deleted) video$/.test(i.snippet.title))
-                .map(i => ({ title: i.snippet.title, artist: i.snippet.videoOwnerChannelTitle || i.snippet.channelTitle, image: thumb(i.snippet), videoId: i.snippet.resourceId.videoId, at: i.snippet.publishedAt })));
-            } catch (e) { console.warn('playlist skip', pl); }
-          }
-          return all.sort((a, b) => b.at.localeCompare(a.at)).slice(0, 50);
-        });
-        showList(tracks, '🆕 New');
-      } catch (e) { status.textContent = 'New releases load nahi hue.'; console.error(e); }
+        const res = await fetch(`https://itunes.apple.com/in/rss/newmusic/limit=30/json`);
+        const data = await res.json();
+        const tracks = (data.feed.entry || []).map(item => ({
+          title: item['im:name'].label,
+          artist: item['im:artist'].label,
+          image: item['im:image'][2].label
+        }));
+        showList(tracks, '🆕 New Releases (Ad-Free)');
+      } catch (e) { status.textContent = 'New releases load nahi hue.'; }
     }
 
-    async function loadMyList() {
-      mode = 'itunes';
-      const tracks = myList.map(m => ({ ...m, image: m.image || `https://i.ytimg.com/vi/${m.videoId}/mqdefault.jpg` }));
-      showList(tracks, '📚 My List');
-      if (!tracks.length) status.textContent = 'My List khali hai. songs.json mein songs daalo.';
-    }
     fetch('songs.json').then(r => r.json()).then(d => { myList = Array.isArray(d) ? d : []; }).catch(() => {});
 
     function quickSearch(q) { mode = 'itunes'; searchInput.value = q; handleSearch(); }
+
     async function handleSearch() {
       const query = searchInput.value.trim();
       if (!query) return;
-      if (mode === 'jamendo') return loadJamendo(query);
       status.textContent = 'Searching...'; trackList.innerHTML = '';
+
       try {
         const res = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(query)}&media=music&entity=song&limit=25`);
         const data = await res.json();
@@ -241,7 +230,7 @@
           image: (i.artworkUrl100 || '').replace('100x100bb', '300x300bb')
         }));
         showList(tracks, 'Found');
-      } catch (e) { status.textContent = 'Network error. Please check your connection.'; }
+      } catch (e) { status.textContent = 'Network error.'; }
     }
 
     function renderTracks() {
@@ -264,42 +253,53 @@
       if (song.videoId) return [song.videoId];
       const local = myList.find(m => norm(m.title) === norm(song.title));
       if (local) return [local.videoId];
+
       const key = 'yt:' + song.title + '|' + song.artist;
       const hit = cacheGet(key, 365 * 864e5); if (hit && hit.length) return hit;
+
+      try {
+        const res = await fetch(`https://pipedapi.kavin.rocks/search?q=${encodeURIComponent(song.title + ' ' + song.artist)}&type=video`);
+        const data = await res.json();
+        const ids = (data.items || []).map(v => v.url.split('/watch?v=')[1]).filter(Boolean);
+        if (ids.length) { cacheSet(key, ids); return ids; }
+      } catch (e) {}
+
       if (!hasKey()) throw new Error('no key');
       const d = await ytGet('search', { part: 'snippet', type: 'video', videoEmbeddable: 'true', videoCategoryId: '10', maxResults: 5, q: `${song.title} ${song.artist} official audio` });
       const ids = (d.items || []).map(i => i.id.videoId);
       cacheSet(key, ids); return ids;
     }
 
-    async function loadJamendo(q) {
-      mode = 'jamendo';
-      if (JAMENDO_CLIENT_ID.startsWith('YAHAN')) { status.textContent = 'Pehle code mein Jamendo key daalo.'; return; }
-      status.textContent = 'Loading free music...'; trackList.innerHTML = '';
-      try {
-        const u = new URL('https://api.jamendo.com/v3.0/tracks/');
-        const p = { client_id: JAMENDO_CLIENT_ID, format: 'json', limit: 30, audioformat: 'mp32', imagesize: 300, ...(q ? { search: q } : { order: 'popularity_week' }) };
-        Object.entries(p).forEach(([k, v]) => u.searchParams.set(k, v));
-        const d = await (await fetch(u)).json();
-        const tracks = (d.results || []).filter(t => t.audio).map(t => ({ title: t.name, artist: t.artist_name, image: t.image, audio: t.audio }));
-        showList(tracks, '🎧 Free Music');
-        if (tracks.length) status.textContent += ' (search box se aur dhoondh sakte ho)';
-      } catch (e) { status.textContent = 'Free music load nahi hua.'; console.error(e); }
-    }
-
-    function playAudio(song) {
+    // ====== Lock Screen & Background Audio Stream Handler ======
+    async function playAudioStream(audioUrl, song) {
       try { if (ytReady) ytPlayer.pauseVideo(); } catch (e) {}
-      document.querySelector('.yt-wrap').style.display = 'none';
-      openYtLink.style.display = 'none';
+      $('ytWrapContainer').style.display = 'none';
       audioEl.style.display = 'block';
-      audioEl.src = song.audio;
-      audioEl.play().catch(e => console.log('play blocked', e));
-      status.textContent = 'Now playing';
+      audioEl.src = audioUrl;
+      
+      try {
+        await audioEl.play();
+        status.textContent = 'Now playing (Background & Lock screen active 🎧)';
+      } catch (err) {
+        console.log("Autoplay blocked, waiting for user gesture", err);
+      }
+      
+      if ('mediaSession' in navigator) {
+        navigator.mediaSession.metadata = new MediaMetadata({
+          title: song.title,
+          artist: song.artist,
+          artwork: [{ src: song.image, sizes: '300x300', type: 'image/jpeg' }]
+        });
+        navigator.mediaSession.setActionHandler('play', () => audioEl.play());
+        navigator.mediaSession.setActionHandler('pause', () => audioEl.pause());
+        navigator.mediaSession.setActionHandler('nexttrack', playNext);
+        navigator.mediaSession.setActionHandler('previoustrack', playPrev);
+      }
     }
 
     function stopAudio() {
-      audioEl.pause(); audioEl.removeAttribute('src'); audioEl.style.display = 'none';
-      document.querySelector('.yt-wrap').style.display = '';
+      audioEl.pause(); audioEl.removeAttribute('src');
+      if (!audioOnlyMode) $('ytWrapContainer').style.display = 'block';
     }
     audioEl.addEventListener('ended', playNext);
 
@@ -308,7 +308,34 @@
       currentIndex = index;
       playerImg.src = song.image; playerTitle.textContent = song.title; playerArtist.textContent = song.artist;
       playerBar.style.display = 'flex'; renderTracks();
-      if (song.audio) { playAudio(song); return; }
+      
+      if (song.audio) { playAudioStream(song.audio, song); return; }
+      
+      // Always fetch audio stream for smooth background play when audioOnlyMode is ON
+      if (audioOnlyMode) {
+        status.textContent = 'Loading audio stream...';
+        try {
+          const ids = await findVideoIds(song);
+          if (ids && ids.length) {
+            const vId = ids[0];
+            currentVideoId = vId;
+            openYtLink.href = `https://www.youtube.com/watch?v=${vId}`;
+            openYtLink.style.display = 'inline-block';
+            
+            const pRes = await fetch(`https://pipedapi.kavin.rocks/streams/${vId}`);
+            const pData = await pRes.json();
+            const audioStream = pData.audioStreams ? pData.audioStreams[0].url : null;
+            if (audioStream) {
+              playAudioStream(audioStream, song);
+              return;
+            }
+          }
+        } catch (e) {
+          console.warn('Audio stream fetch failed, fallback to video player');
+        }
+      }
+
+      // Standard Video Playback mode if Audio-Only is OFF
       stopAudio();
       if (!ytReady) { pendingPlay = index; status.textContent = 'Loading player...'; return; }
       pendingPlay = null;
@@ -317,16 +344,15 @@
         retryList = await findVideoIds(song);
         tryNextCandidate();
       } catch (e) {
-        status.textContent = hasKey() ? 'YouTube search fail hua.' : 'Pehle code mein YouTube API key daalo.';
-        console.error(e);
+        status.textContent = 'Song search fail hua.';
       }
     }
 
     function tryNextCandidate() {
       const id = retryList.shift();
       if (!id) {
-        if (++failStreak > 5) { status.textContent = 'Kai songs nahi chale. Internet ya quota check karo.'; return; }
-        status.textContent = 'Ye song embed nahi ho sakta. Next chal raha hai...';
+        if (++failStreak > 5) { status.textContent = 'Kai songs nahi chale.'; return; }
+        status.textContent = 'Next track try kar rahe hain...';
         setTimeout(playNext, 1200); return;
       }
       currentVideoId = id;
@@ -347,8 +373,7 @@
     function playNext() { if (currentPlaylist.length) playSong((currentIndex + 1) % currentPlaylist.length); }
     function playPrev() { if (currentPlaylist.length) playSong((currentIndex - 1 + currentPlaylist.length) % currentPlaylist.length); }
 
-    if (NEW_CHANNEL_IDS.length || NEW_CHANNEL_HANDLES.length) $('newTag').style.display = '';
-    hasKey() ? loadTrending() : (status.textContent = 'Code mein YouTube API key daalo.');
+    loadTrending();
   </script>
 </body>
 </html>
