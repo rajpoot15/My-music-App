@@ -39,14 +39,15 @@
   <header><h1>🎵 My Music Player</h1></header>
 
   <div class="search-box">
-    <input type="text" id="searchInput" placeholder="Search song or artist..." value="Karan Aujla" />
+    <input type="text" id="searchInput" placeholder="Search song or artist..." />
     <button class="search-btn" onclick="handleSearch()">Search</button>
   </div>
 
   <div class="tags">
+    <div class="tag" onclick="loadTrending()">🔥 Trending</div>
+    <div class="tag" id="newTag" style="display:none" onclick="loadNew()">🆕 New</div>
+    <div class="tag" onclick="loadMyList()">📚 My List</div>
     <div class="tag" onclick="quickSearch('Karan Aujla')">🎤 Karan Aujla</div>
-    <div class="tag" onclick="quickSearch('Humsafar')">✨ Humsafar</div>
-    <div class="tag" onclick="quickSearch('Shubh')">🔥 Shubh</div>
   </div>
 
   <div id="status" class="status">Initializing player...</div>
@@ -67,86 +68,118 @@
 
   <script src="https://www.youtube.com/iframe_api"></script>
   <script>
-    // ====== 1. Yahan apni YouTube Data API v3 key daalo ======
-    const YT_API_KEY = 'AIzaSyBNe9Fgjs_5uJYiIrutVXsTzdzTZ5hoEsk';
+    // ====== SETTINGS ======
+    const YT_API_KEY = 'YAHAN_APNI_API_KEY_DAALO';
+    const REGION = 'IN';             // trending kis desh ka
+    const NEW_CHANNEL_IDS = [];      // optional: artist/label channel IDs (UCxxxx...) -> "New" tab ke liye
 
-    let currentPlaylist = [];
-    let currentIndex = 0;
-    let ytPlayer = null;
-    let ytReady = false;
-    let pendingPlay = null;
-    let retryList = [];      // ek song ke baaki YouTube results (fallback ke liye)
+    let currentPlaylist = [], currentIndex = -1, myList = [];
+    let ytPlayer = null, ytReady = false, pendingPlay = null, retryList = [], failStreak = 0;
 
     const $ = id => document.getElementById(id);
     const searchInput = $('searchInput'), trackList = $('trackList'), status = $('status');
     const playerBar = $('playerBar'), playerImg = $('playerImg');
     const playerTitle = $('playerTitle'), playerArtist = $('playerArtist');
-
-    // Safe text (XSS se bachne ke liye)
     const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const norm = s => String(s).toLowerCase().replace(/[^a-z0-9\u0900-\u097f\u0a00-\u0a7f]+/g, ' ').trim();
 
-    // ====== YouTube player setup ======
-    function onYouTubeIframeAPIReady() {
+    // ====== Cache (quota bachane ke liye) ======
+    function cacheGet(key, ttl) {
+      try { const o = JSON.parse(localStorage.getItem(key) || 'null'); if (o && Date.now() - o.t < ttl) return o.v; } catch (e) {}
+      return null;
+    }
+    function cacheSet(key, v) { try { localStorage.setItem(key, JSON.stringify({ t: Date.now(), v })); } catch (e) {} }
+    async function withCache(key, ttl, loader) {
+      const hit = cacheGet(key, ttl); if (hit) return hit;
+      const v = await loader(); cacheSet(key, v); return v;
+    }
+
+    async function ytGet(path, params) {
+      const u = new URL('https://www.googleapis.com/youtube/v3/' + path);
+      Object.entries({ ...params, key: YT_API_KEY }).forEach(([k, v]) => u.searchParams.set(k, v));
+      const r = await fetch(u);
+      if (!r.ok) throw new Error('YouTube API ' + r.status);
+      return r.json();
+    }
+    const hasKey = () => !YT_API_KEY.startsWith('YAHAN');
+    const thumb = s => (s.thumbnails.medium || s.thumbnails.default || {}).url || '';
+
+    // ====== YouTube player ======
+    window.onYouTubeIframeAPIReady = function () {
       ytPlayer = new YT.Player('ytPlayer', {
         width: '100%', height: '100%',
         playerVars: { playsinline: 1, rel: 0, modestbranding: 1 },
         events: {
           onReady: () => { ytReady = true; if (pendingPlay !== null) playSong(pendingPlay); },
-          onStateChange: e => { if (e.data === YT.PlayerState.ENDED) playNext(); },
-          // 2, 5, 100, 101, 150 = video unavailable / embed blocked -> agla result try karo
+          onStateChange: e => {
+            if (e.data === YT.PlayerState.PLAYING) failStreak = 0;
+            if (e.data === YT.PlayerState.ENDED) playNext();
+          },
           onError: () => tryNextCandidate()
         }
       });
-    }
-    window.onYouTubeIframeAPIReady = onYouTubeIframeAPIReady;
+    };
 
-    // ====== YouTube search (with cache taaki quota bache) ======
-    async function findVideoIds(song) {
-      const key = 'yt:' + song.title + '|' + song.artist;
+    // ====== Lists: Trending / New / My List / Search ======
+    function showList(tracks, msg) {
+      currentPlaylist = tracks; currentIndex = -1;
+      status.textContent = tracks.length ? `${msg} (${tracks.length}). Tap to play:` : 'Kuch nahi mila.';
+      renderTracks();
+    }
+
+    // Trending music: 1 unit me 40 songs, 3 ghante cache
+    async function loadTrending() {
+      if (!hasKey()) { status.textContent = 'Pehle code mein YouTube API key daalo.'; return; }
+      status.textContent = 'Loading trending...'; trackList.innerHTML = '';
       try {
-        const cached = JSON.parse(localStorage.getItem(key) || 'null');
-        if (cached && cached.length) return cached;
-      } catch (e) {}
-
-      const q = `${song.title} ${song.artist} official audio`;
-      const url = 'https://www.googleapis.com/youtube/v3/search?part=snippet&type=video'
-        + '&videoEmbeddable=true&maxResults=5&videoCategoryId=10'
-        + '&q=' + encodeURIComponent(q) + '&key=' + YT_API_KEY;
-
-      const res = await fetch(url);
-      if (!res.ok) throw new Error('YouTube API error ' + res.status);
-      const data = await res.json();
-      const ids = (data.items || []).map(i => i.id.videoId);
-      try { localStorage.setItem(key, JSON.stringify(ids)); } catch (e) {}
-      return ids;
+        const tracks = await withCache('trend:' + REGION, 3 * 3600e3, async () => {
+          const d = await ytGet('videos', { part: 'snippet,status', chart: 'mostPopular', videoCategoryId: '10', regionCode: REGION, maxResults: 40 });
+          return d.items.filter(v => v.status.embeddable).map(v => ({ title: v.snippet.title, artist: v.snippet.channelTitle, image: thumb(v.snippet), videoId: v.id }));
+        });
+        showList(tracks, '🔥 Trending');
+      } catch (e) { status.textContent = 'Trending load nahi hua (API key ya quota check karo).'; console.error(e); }
     }
 
-    // ====== iTunes search (cover, title, artist ke liye) ======
-    function quickSearch(q) { searchInput.value = q; handleSearch(); }
+    // New releases: channels ki uploads playlist, 1 unit per channel
+    async function loadNew() {
+      status.textContent = 'Loading new releases...'; trackList.innerHTML = '';
+      try {
+        const tracks = await withCache('new:' + NEW_CHANNEL_IDS.join(','), 3 * 3600e3, async () => {
+          let all = [];
+          for (const ch of NEW_CHANNEL_IDS) {
+            const d = await ytGet('playlistItems', { part: 'snippet', playlistId: 'UU' + ch.slice(2), maxResults: 10 });
+            all = all.concat(d.items.filter(i => i.snippet.resourceId && !/^(Private|Deleted) video$/.test(i.snippet.title))
+              .map(i => ({ title: i.snippet.title, artist: i.snippet.videoOwnerChannelTitle || i.snippet.channelTitle, image: thumb(i.snippet), videoId: i.snippet.resourceId.videoId, at: i.snippet.publishedAt })));
+          }
+          return all.sort((a, b) => b.at.localeCompare(a.at)).slice(0, 40);
+        });
+        showList(tracks, '🆕 New');
+      } catch (e) { status.textContent = 'New releases load nahi hue.'; console.error(e); }
+    }
 
+    // My List: songs.json (quota zero)
+    async function loadMyList() {
+      const tracks = myList.map(m => ({ ...m, image: m.image || `https://i.ytimg.com/vi/${m.videoId}/mqdefault.jpg` }));
+      showList(tracks, '📚 My List');
+      if (!tracks.length) status.textContent = 'My List khali hai. songs.json mein songs daalo.';
+    }
+    fetch('songs.json').then(r => r.json()).then(d => { myList = Array.isArray(d) ? d : []; }).catch(() => {});
+
+    // Search: iTunes se naam/cover
+    function quickSearch(q) { searchInput.value = q; handleSearch(); }
     async function handleSearch() {
       const query = searchInput.value.trim();
       if (!query) return;
-      status.textContent = 'Searching...';
-      trackList.innerHTML = '';
+      status.textContent = 'Searching...'; trackList.innerHTML = '';
       try {
         const res = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(query)}&media=music&entity=song&limit=25`);
         const data = await res.json();
-        if (data.results && data.results.length) {
-          currentPlaylist = data.results.map(item => ({
-            title: item.trackName || 'Unknown Track',
-            artist: item.artistName || 'Unknown Artist',
-            image: (item.artworkUrl100 || '').replace('100x100bb', '300x300bb')
-          }));
-          currentIndex = -1;
-          status.textContent = `Found ${currentPlaylist.length} tracks! Tap any to play:`;
-          renderTracks();
-        } else {
-          status.textContent = 'No tracks found for this search.';
-        }
-      } catch (e) {
-        status.textContent = 'Network error. Please check your connection.';
-      }
+        const tracks = (data.results || []).map(i => ({
+          title: i.trackName || 'Unknown Track', artist: i.artistName || 'Unknown Artist',
+          image: (i.artworkUrl100 || '').replace('100x100bb', '300x300bb')
+        }));
+        showList(tracks, 'Found');
+      } catch (e) { status.textContent = 'Network error. Please check your connection.'; }
     }
 
     function renderTracks() {
@@ -165,32 +198,33 @@
       });
     }
 
+    // ====== Video ID dhoondhna: My List -> cache -> YouTube search ======
+    async function findVideoIds(song) {
+      if (song.videoId) return [song.videoId];
+      const local = myList.find(m => norm(m.title) === norm(song.title));
+      if (local) return [local.videoId];
+      const key = 'yt:' + song.title + '|' + song.artist;
+      const hit = cacheGet(key, 365 * 864e5); if (hit && hit.length) return hit;
+      if (!hasKey()) throw new Error('no key');
+      const d = await ytGet('search', { part: 'snippet', type: 'video', videoEmbeddable: 'true', videoCategoryId: '10', maxResults: 5, q: `${song.title} ${song.artist} official audio` });
+      const ids = (d.items || []).map(i => i.id.videoId);
+      cacheSet(key, ids); return ids;
+    }
+
     // ====== Playback ======
     async function playSong(index) {
-      const song = currentPlaylist[index];
-      if (!song) return;
+      const song = currentPlaylist[index]; if (!song) return;
       currentIndex = index;
-
-      playerImg.src = song.image;
-      playerTitle.textContent = song.title;
-      playerArtist.textContent = song.artist;
-      playerBar.style.display = 'flex';
-      renderTracks();
-
+      playerImg.src = song.image; playerTitle.textContent = song.title; playerArtist.textContent = song.artist;
+      playerBar.style.display = 'flex'; renderTracks();
       if (!ytReady) { pendingPlay = index; status.textContent = 'Loading player...'; return; }
       pendingPlay = null;
-
-      if (YT_API_KEY.startsWith('YAHAN')) {
-        status.textContent = 'Pehle code mein YouTube API key daalo.';
-        return;
-      }
-
       try {
         status.textContent = 'Loading full song...';
         retryList = await findVideoIds(song);
         tryNextCandidate();
       } catch (e) {
-        status.textContent = 'YouTube search fail hua (API key ya quota check karo).';
+        status.textContent = hasKey() ? 'YouTube search fail hua (quota check karo).' : 'Pehle code mein YouTube API key daalo.';
         console.error(e);
       }
     }
@@ -198,24 +232,19 @@
     function tryNextCandidate() {
       const id = retryList.shift();
       if (!id) {
-        status.textContent = 'Ye song embed nahi ho sakta. Next song chal raha hai...';
-        setTimeout(playNext, 1200);
-        return;
+        if (++failStreak > 5) { status.textContent = 'Kai songs nahi chale. Internet ya quota check karo.'; return; }
+        status.textContent = 'Ye song embed nahi ho sakta. Next chal raha hai...';
+        setTimeout(playNext, 1200); return;
       }
       status.textContent = 'Now playing';
       ytPlayer.loadVideoById(id);
     }
 
-    function playNext() {
-      if (!currentPlaylist.length) return;
-      playSong((currentIndex + 1) % currentPlaylist.length);
-    }
-    function playPrev() {
-      if (!currentPlaylist.length) return;
-      playSong((currentIndex - 1 + currentPlaylist.length) % currentPlaylist.length);
-    }
+    function playNext() { if (currentPlaylist.length) playSong((currentIndex + 1) % currentPlaylist.length); }
+    function playPrev() { if (currentPlaylist.length) playSong((currentIndex - 1 + currentPlaylist.length) % currentPlaylist.length); }
 
-    handleSearch();
+    if (NEW_CHANNEL_IDS.length) $('newTag').style.display = '';
+    hasKey() ? loadTrending() : (status.textContent = 'Code mein YouTube API key daalo, phir trending songs apne aap aayenge.');
   </script>
 </body>
 </html>
