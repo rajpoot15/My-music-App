@@ -36,8 +36,9 @@
     .btn.alt { background:#333; color:#fff; }
     .open-yt-btn { background:#ff0000; color:#fff; text-decoration:none; padding:4px 10px; border-radius:12px; font-size:0.75rem; font-weight:bold; display:inline-block; margin-top:4px; }
     audio { width:100%; margin-top:6px; }
-    .yt-wrap { position:relative; width:100%; aspect-ratio:16/9; background:#000; border-radius:10px; overflow:hidden; }
+    .yt-wrap { position:relative; width:100%; aspect-ratio:16/9; background:#000; border-radius:10px; overflow:hidden; display:none; }
     .yt-wrap iframe, .yt-wrap > div { position:absolute; inset:0; width:100%; height:100%; }
+    footer { text-align:center; margin-top:40px; color:var(--subtext); font-size:0.8rem; padding-bottom:20px; }
   </style>
 </head>
 <body>
@@ -46,12 +47,12 @@
 
   <div class="toolbar">
     <label class="toggle-switch">
-      <input type="checkbox" id="adBlockToggle" checked onchange="toggleAdBlock()" /> 
-      <span id="toggleText">🛡️ Ad-Free (0 Units)</span>
+      <input type="checkbox" id="adBlockToggle" checked onchange="toggleToggles()" /> 
+      <span id="toggleText">🛡️ Ad-Free</span>
     </label>
     <label class="toggle-switch" style="color:#fff;">
-      <input type="checkbox" id="audioOnlyToggle" onchange="toggleAudioOnly()" /> 
-      🎧 Audio Only (Screen Lock)
+      <input type="checkbox" id="audioOnlyToggle" checked onchange="toggleToggles()" /> 
+      🎧 Audio Only (Lock)
     </label>
   </div>
 
@@ -85,7 +86,7 @@
     <div class="tag" onclick="quickSearch('Mika Singh')">🎤 Mika Singh</div>
   </div>
 
-  <div id="status" class="status">Ready. Select a song or tag below:</div>
+  <div id="status" class="status">Dono toggles ON rakho taaki Ad-free aur background play chale!</div>
   <div id="trackList" class="track-list"></div>
 
   <div id="playerBar" class="player-bar">
@@ -104,27 +105,26 @@
     <audio id="audioPlayer" controls playsinline></audio>
   </div>
 
+  <footer>Made by Rajpøøt</footer>
+
   <script src="https://www.youtube.com/iframe_api"></script>
   <script>
     const YT_API_KEY = 'AIzaSyBNe9Fgjs_5uJYiIrutVXsTzdzTZ5hoEsk';
     const REGION = 'IN';
     let adBlockEnabled = true;
-    let audioOnlyMode = false;
+    let audioOnlyMode = true;
 
-    function toggleAdBlock() {
+    function toggleToggles() {
       adBlockEnabled = $('adBlockToggle').checked;
-      $('toggleText').textContent = adBlockEnabled ? '🛡️ Ad-Free (0 Units)' : '⚡ Google API';
-    }
-
-    function toggleAudioOnly() {
       audioOnlyMode = $('audioOnlyToggle').checked;
       const ytWrap = $('ytWrapContainer');
-      if (audioOnlyMode) {
+      
+      if (adBlockEnabled && audioOnlyMode) {
         ytWrap.style.display = 'none';
-        status.textContent = '🎧 Audio-Only Mode ON (Lock screen & Background active)';
+        status.textContent = '🛡️ Ad-Free & Background Mode Active (0 Ads)';
       } else {
         ytWrap.style.display = 'block';
-        status.textContent = '▶️ Video Mode ON';
+        status.textContent = '⚠️ Dono toggles ON karo taaki ads na aaye!';
       }
     }
 
@@ -270,7 +270,6 @@
       cacheSet(key, ids); return ids;
     }
 
-    // ====== Lock Screen & Background Audio Stream Handler ======
     async function playAudioStream(audioUrl, song) {
       try { if (ytReady) ytPlayer.pauseVideo(); } catch (e) {}
       $('ytWrapContainer').style.display = 'none';
@@ -279,9 +278,9 @@
       
       try {
         await audioEl.play();
-        status.textContent = 'Now playing (Background & Lock screen active 🎧)';
+        status.textContent = 'Now playing (Ad-Free & Background 🎧)';
       } catch (err) {
-        console.log("Autoplay blocked, waiting for user gesture", err);
+        console.log("Autoplay blocked", err);
       }
       
       if ('mediaSession' in navigator) {
@@ -298,8 +297,7 @@
     }
 
     function stopAudio() {
-      audioEl.pause(); audioEl.removeAttribute('src');
-      if (!audioOnlyMode) $('ytWrapContainer').style.display = 'block';
+      audioEl.pause(); audioEl.removeAttribute('src'); audioEl.style.display = 'none';
     }
     audioEl.addEventListener('ended', playNext);
 
@@ -310,10 +308,10 @@
       playerBar.style.display = 'flex'; renderTracks();
       
       if (song.audio) { playAudioStream(song.audio, song); return; }
-      
-      // Always fetch audio stream for smooth background play when audioOnlyMode is ON
-      if (audioOnlyMode) {
-        status.textContent = 'Loading audio stream...';
+
+      // STICKY CHECK: DONO TOGGLES ON HONGE TABHI PIPED STREAM (0 ADS) MILEGA
+      if (adBlockEnabled && audioOnlyMode) {
+        status.textContent = 'Loading ad-free stream...';
         try {
           const ids = await findVideoIds(song);
           if (ids && ids.length) {
@@ -331,11 +329,11 @@
             }
           }
         } catch (e) {
-          console.warn('Audio stream fetch failed, fallback to video player');
+          console.warn('Piped stream failed, falling back');
         }
       }
 
-      // Standard Video Playback mode if Audio-Only is OFF
+      // Agar koi ek bhi toggle off hua, tabhi iframe video player khulega (jisme ads aa sakte hain)
       stopAudio();
       if (!ytReady) { pendingPlay = index; status.textContent = 'Loading player...'; return; }
       pendingPlay = null;
