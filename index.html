@@ -48,6 +48,25 @@
     <div class="tag" id="newTag" style="display:none" onclick="loadNew()">🆕 New</div>
     <div class="tag" onclick="loadMyList()">📚 My List</div>
     <div class="tag" onclick="quickSearch('Karan Aujla')">🎤 Karan Aujla</div>
+    <div class="tag" onclick="quickSearch('Diljit Dosanjh')">🎤 Diljit Dosanjh</div>
+    <div class="tag" onclick="quickSearch('AP Dhillon')">🎤 AP Dhillon</div>
+    <div class="tag" onclick="quickSearch('Sidhu Moose Wala')">🎤 Sidhu Moose Wala</div>
+    <div class="tag" onclick="quickSearch('Shubh')">🎤 Shubh</div>
+    <div class="tag" onclick="quickSearch('Arijit Singh')">🎤 Arijit Singh</div>
+    <div class="tag" onclick="quickSearch('Badshah')">🎤 Badshah</div>
+    <div class="tag" onclick="quickSearch('Yo Yo Honey Singh')">🎤 Yo Yo Honey Singh</div>
+    <div class="tag" onclick="quickSearch('Divine')">🎤 Divine</div>
+    <div class="tag" onclick="quickSearch('Ammy Virk')">🎤 Ammy Virk</div>
+    <div class="tag" onclick="quickSearch('Jasmine Sandlas')">🎤 Jasmine Sandlas</div>
+    <div class="tag" onclick="quickSearch('Neha Kakkar')">🎤 Neha Kakkar</div>
+    <div class="tag" onclick="quickSearch('Atif Aslam')">🎤 Atif Aslam</div>
+    <div class="tag" onclick="quickSearch('Jubin Nautiyal')">🎤 Jubin Nautiyal</div>
+    <div class="tag" onclick="quickSearch('Shreya Ghoshal')">🎤 Shreya Ghoshal</div>
+    <div class="tag" onclick="quickSearch('Sonu Nigam')">🎤 Sonu Nigam</div>
+    <div class="tag" onclick="quickSearch('King')">🎤 King</div>
+    <div class="tag" onclick="quickSearch('Guru Randhawa')">🎤 Guru Randhawa</div>
+    <div class="tag" onclick="quickSearch('B Praak')">🎤 B Praak</div>
+    <div class="tag" onclick="quickSearch('Mika Singh')">🎤 Mika Singh</div>
   </div>
 
   <div id="status" class="status">Initializing player...</div>
@@ -73,8 +92,19 @@
     const REGION = 'IN';             // trending kis desh ka
     const NEW_CHANNEL_IDS = [         // "New" tab: in channels ke latest uploads apne aap aate hain
       'UCq-Fj5jknLsUf-MWSy4_brA',   // T-Series
-      'UCOsyDsO5tIt-VZ1iwjdQmew'    // Speed Records (Punjabi)
+      'UCOsyDsO5tIt-VZ1iwjdQmew',   // Speed Records (Punjabi)
+      'UC3XBkDeCVXCoCofFgfUZXGw'    // Karan Aujla
       // aur channels yahan add karo, har ID ke baad comma
+    ];
+    // Artists: ['@handle', 'naam ka hissa']. Code check karta hai ki channel ka naam match kare aur
+    // 2 lakh+ subscribers hon (fan/fake channel skip). Galat handle apne aap skip ho jaata hai.
+    const NEW_CHANNEL_HANDLES = [
+      ['@diljitdosanjh', 'diljit'], ['@apdhillon', 'apdhillon'], ['@badboyshah', 'badshah'],
+      ['@arijitsingh', 'arijit'], ['@sidhumoosewalaofficial', 'sidhu'], ['@yoyohoneysingh', 'honey'],
+      ['@divine', 'divine'], ['@ammyvirk', 'ammy'], ['@jasminesandlas', 'jasmine'],
+      ['@nehakakkar', 'neha'], ['@atifaslam', 'atif'], ['@jubinnautiyal', 'jubin'],
+      ['@shreyaghoshal', 'shreya'], ['@sonunigam', 'sonu'], ['@gururandhawa', 'guru'],
+      ['@bpraak', 'praak'], ['@mikasingh', 'mika'], ['@shubhworldwide', 'shubh']
     ];
 
     let currentPlaylist = [], currentIndex = -1, myList = [];
@@ -144,18 +174,33 @@
       } catch (e) { status.textContent = 'Trending load nahi hua (API key ya quota check karo).'; console.error(e); }
     }
 
-    // New releases: channels ki uploads playlist, 1 unit per channel
+    // New releases: channels ki uploads playlist, 1 unit per channel (handle ek baar resolve hoke save ho jaata hai)
+    async function uploadsOf([handle, kw]) {
+      return withCache('h2:' + handle, 30 * 864e5, async () => {
+        try {
+          const d = await ytGet('channels', { part: 'snippet,contentDetails,statistics', forHandle: handle });
+          const c = d.items && d.items[0]; if (!c) return null;
+          const name = c.snippet.title.toLowerCase().replace(/[^a-z0-9]/g, '');
+          if (!name.includes(kw) || Number(c.statistics.subscriberCount || 0) < 200000) return null;
+          return c.contentDetails.relatedPlaylists.uploads;
+        } catch (e) { return null; }
+      });
+    }
     async function loadNew() {
       status.textContent = 'Loading new releases...'; trackList.innerHTML = '';
       try {
-        const tracks = await withCache('new:' + NEW_CHANNEL_IDS.join(','), 3 * 3600e3, async () => {
+        const tracks = await withCache('new:' + NEW_CHANNEL_IDS.concat(NEW_CHANNEL_HANDLES).join(','), 3 * 3600e3, async () => {
+          const lists = NEW_CHANNEL_IDS.map(ch => 'UU' + ch.slice(2));
+          for (const h of NEW_CHANNEL_HANDLES) { const pl = await uploadsOf(h); if (pl) lists.push(pl); else console.warn('handle skip', h[0]); }
           let all = [];
-          for (const ch of NEW_CHANNEL_IDS) {
-            const d = await ytGet('playlistItems', { part: 'snippet', playlistId: 'UU' + ch.slice(2), maxResults: 10 });
-            all = all.concat(d.items.filter(i => i.snippet.resourceId && !/^(Private|Deleted) video$/.test(i.snippet.title))
-              .map(i => ({ title: i.snippet.title, artist: i.snippet.videoOwnerChannelTitle || i.snippet.channelTitle, image: thumb(i.snippet), videoId: i.snippet.resourceId.videoId, at: i.snippet.publishedAt })));
+          for (const pl of lists) {
+            try {
+              const d = await ytGet('playlistItems', { part: 'snippet', playlistId: pl, maxResults: 6 });
+              all = all.concat(d.items.filter(i => i.snippet.resourceId && !/^(Private|Deleted) video$/.test(i.snippet.title))
+                .map(i => ({ title: i.snippet.title, artist: i.snippet.videoOwnerChannelTitle || i.snippet.channelTitle, image: thumb(i.snippet), videoId: i.snippet.resourceId.videoId, at: i.snippet.publishedAt })));
+            } catch (e) { console.warn('playlist skip', pl); }
           }
-          return all.sort((a, b) => b.at.localeCompare(a.at)).slice(0, 40);
+          return all.sort((a, b) => b.at.localeCompare(a.at)).slice(0, 50);
         });
         showList(tracks, '🆕 New');
       } catch (e) { status.textContent = 'New releases load nahi hue.'; console.error(e); }
@@ -247,7 +292,7 @@
     function playNext() { if (currentPlaylist.length) playSong((currentIndex + 1) % currentPlaylist.length); }
     function playPrev() { if (currentPlaylist.length) playSong((currentIndex - 1 + currentPlaylist.length) % currentPlaylist.length); }
 
-    if (NEW_CHANNEL_IDS.length) $('newTag').style.display = '';
+    if (NEW_CHANNEL_IDS.length || NEW_CHANNEL_HANDLES.length) $('newTag').style.display = '';
     hasKey() ? loadTrending() : (status.textContent = 'Code mein YouTube API key daalo, phir trending songs apne aap aayenge.');
   </script>
 </body>
