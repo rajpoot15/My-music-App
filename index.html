@@ -25,11 +25,12 @@
     .track-title { font-size:.95rem; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .track-artist { font-size:.82rem; color:var(--subtext); margin-top:4px; }
 
-    .player-bar { position:fixed; bottom:0; left:0; right:0; background:#181818; border-top:1px solid #282828; padding:12px 16px; display:none; flex-direction:column; gap:10px; max-width:600px; margin:0 auto; }
+    .player-bar { position:fixed; bottom:0; left:0; right:0; background:#181818; border-top:1px solid #282828; padding:12px 16px; display:none; flex-direction:column; gap:10px; max-width:600px; margin:0 auto; z-index:999; }
     .player-header { display:flex; align-items:center; gap:12px; }
     .player-header img { width:48px; height:48px; border-radius:6px; }
     .btn { background:var(--primary); color:#000; border:none; padding:6px 14px; border-radius:15px; font-weight:bold; cursor:pointer; }
     .btn.alt { background:#333; color:#fff; }
+    .open-yt-btn { background:#ff0000; color:#fff; text-decoration:none; padding:4px 10px; border-radius:12px; font-size:0.75rem; font-weight:bold; display:inline-block; margin-top:4px; }
     audio { width:100%; }
     .yt-wrap { position:relative; width:100%; aspect-ratio:16/9; background:#000; border-radius:10px; overflow:hidden; }
     .yt-wrap iframe, .yt-wrap > div { position:absolute; inset:0; width:100%; height:100%; }
@@ -78,9 +79,11 @@
       <div style="flex:1; min-width:0;">
         <div id="playerTitle" style="font-weight:bold; font-size:.9rem;"></div>
         <div id="playerArtist" style="color:var(--primary); font-size:.8rem;"></div>
+        <a id="openYtLink" href="#" target="_blank" class="open-yt-btn" style="display:none;">Open Video ↗</a>
       </div>
       <button class="btn alt" onclick="playPrev()">⏮</button>
       <button class="btn" onclick="playNext()">Next ⏭</button>
+      <button class="btn alt" onclick="closePlayer()" aria-label="Close player">✕</button>
     </div>
     <div class="yt-wrap"><div id="ytPlayer"></div></div>
     <audio id="audioPlayer" controls playsinline style="display:none"></audio>
@@ -90,15 +93,13 @@
   <script>
     // ====== SETTINGS ======
     const YT_API_KEY = 'AIzaSyBNe9Fgjs_5uJYiIrutVXsTzdzTZ5hoEsk';
-    const REGION = 'IN';             // trending kis desh ka
-    const NEW_CHANNEL_IDS = [         // "New" tab: in channels ke latest uploads apne aap aate hain
+    const REGION = 'IN';
+    const NEW_CHANNEL_IDS = [
       'UCq-Fj5jknLsUf-MWSy4_brA',   // T-Series
-      'UCOsyDsO5tIt-VZ1iwjdQmew',   // Speed Records (Punjabi)
+      'UCOsyDsO5tIt-VZ1iwjdQmew',   // Speed Records
       'UC3XBkDeCVXCoCofFgfUZXGw'    // Karan Aujla
-      // aur channels yahan add karo, har ID ke baad comma
     ];
-    // Artists: ['@handle', 'naam ka hissa']. Code check karta hai ki channel ka naam match kare aur
-    // 2 lakh+ subscribers hon (fan/fake channel skip). Galat handle apne aap skip ho jaata hai.
+
     const NEW_CHANNEL_HANDLES = [
       ['@diljitdosanjh', 'diljit'], ['@apdhillon', 'apdhillon'], ['@badboyshah', 'badshah'],
       ['@arijitsingh', 'arijit'], ['@sidhumoosewalaofficial', 'sidhu'], ['@yoyohoneysingh', 'honey'],
@@ -108,22 +109,22 @@
       ['@bpraak', 'praak'], ['@mikasingh', 'mika'], ['@shubhworldwide', 'shubh']
     ];
 
-    // Jamendo free API key (devportal.jamendo.com par free account se milti hai)
     const JAMENDO_CLIENT_ID = 'YAHAN_JAMENDO_KEY_DAALO';
-    let mode = 'itunes';   // 'itunes' ya 'jamendo' (search kahan se ho)
+    let mode = 'itunes';
 
     let currentPlaylist = [], currentIndex = -1, myList = [];
     let ytPlayer = null, ytReady = false, pendingPlay = null, retryList = [], failStreak = 0;
+    let currentVideoId = '';
 
     const $ = id => document.getElementById(id);
     const searchInput = $('searchInput'), trackList = $('trackList'), status = $('status');
     const playerBar = $('playerBar'), playerImg = $('playerImg');
     const playerTitle = $('playerTitle'), playerArtist = $('playerArtist');
+    const openYtLink = $('openYtLink');
     const audioEl = $('audioPlayer');
     const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     const norm = s => String(s).toLowerCase().replace(/[^a-z0-9\u0900-\u097f\u0a00-\u0a7f]+/g, ' ').trim();
 
-    // ====== Cache (quota bachane ke liye) ======
     function cacheGet(key, ttl) {
       try { const o = JSON.parse(localStorage.getItem(key) || 'null'); if (o && Date.now() - o.t < ttl) return o.v; } catch (e) {}
       return null;
@@ -148,7 +149,13 @@
     window.onYouTubeIframeAPIReady = function () {
       ytPlayer = new YT.Player('ytPlayer', {
         width: '100%', height: '100%',
-        playerVars: { playsinline: 1, rel: 0, modestbranding: 1 },
+        playerVars: { 
+          playsinline: 1, 
+          controls: 1,
+          rel: 0, 
+          showinfo: 1,
+          origin: window.location.origin 
+        },
         events: {
           onReady: () => { ytReady = true; if (pendingPlay !== null) playSong(pendingPlay); },
           onStateChange: e => {
@@ -160,14 +167,12 @@
       });
     };
 
-    // ====== Lists: Trending / New / My List / Search ======
     function showList(tracks, msg) {
       currentPlaylist = tracks; currentIndex = -1;
       status.textContent = tracks.length ? `${msg} (${tracks.length}). Tap to play:` : 'Kuch nahi mila.';
       renderTracks();
     }
 
-    // Trending music: 1 unit me 40 songs, 3 ghante cache
     async function loadTrending() {
       mode = 'itunes';
       if (!hasKey()) { status.textContent = 'Pehle code mein YouTube API key daalo.'; return; }
@@ -181,7 +186,6 @@
       } catch (e) { status.textContent = 'Trending load nahi hua (API key ya quota check karo).'; console.error(e); }
     }
 
-    // New releases: channels ki uploads playlist, 1 unit per channel (handle ek baar resolve hoke save ho jaata hai)
     async function uploadsOf([handle, kw]) {
       return withCache('h2:' + handle, 30 * 864e5, async () => {
         try {
@@ -193,6 +197,7 @@
         } catch (e) { return null; }
       });
     }
+
     async function loadNew() {
       mode = 'itunes';
       status.textContent = 'Loading new releases...'; trackList.innerHTML = '';
@@ -214,7 +219,6 @@
       } catch (e) { status.textContent = 'New releases load nahi hue.'; console.error(e); }
     }
 
-    // My List: songs.json (quota zero)
     async function loadMyList() {
       mode = 'itunes';
       const tracks = myList.map(m => ({ ...m, image: m.image || `https://i.ytimg.com/vi/${m.videoId}/mqdefault.jpg` }));
@@ -223,7 +227,6 @@
     }
     fetch('songs.json').then(r => r.json()).then(d => { myList = Array.isArray(d) ? d : []; }).catch(() => {});
 
-    // Search: iTunes se naam/cover
     function quickSearch(q) { mode = 'itunes'; searchInput.value = q; handleSearch(); }
     async function handleSearch() {
       const query = searchInput.value.trim();
@@ -257,7 +260,6 @@
       });
     }
 
-    // ====== Video ID dhoondhna: My List -> cache -> YouTube search ======
     async function findVideoIds(song) {
       if (song.videoId) return [song.videoId];
       const local = myList.find(m => norm(m.title) === norm(song.title));
@@ -270,7 +272,6 @@
       cacheSet(key, ids); return ids;
     }
 
-    // ====== Jamendo: free poore songs, <audio> se => screen lock par bhi chalte hain ======
     async function loadJamendo(q) {
       mode = 'jamendo';
       if (JAMENDO_CLIENT_ID.startsWith('YAHAN')) { status.textContent = 'Pehle code mein Jamendo key daalo.'; return; }
@@ -283,32 +284,25 @@
         const tracks = (d.results || []).filter(t => t.audio).map(t => ({ title: t.name, artist: t.artist_name, image: t.image, audio: t.audio }));
         showList(tracks, '🎧 Free Music');
         if (tracks.length) status.textContent += ' (search box se aur dhoondh sakte ho)';
-      } catch (e) { status.textContent = 'Free music load nahi hua (key ya internet check karo).'; console.error(e); }
+      } catch (e) { status.textContent = 'Free music load nahi hua.'; console.error(e); }
     }
 
     function playAudio(song) {
       try { if (ytReady) ytPlayer.pauseVideo(); } catch (e) {}
       document.querySelector('.yt-wrap').style.display = 'none';
+      openYtLink.style.display = 'none';
       audioEl.style.display = 'block';
       audioEl.src = song.audio;
       audioEl.play().catch(e => console.log('play blocked', e));
-      status.textContent = 'Now playing (screen lock par bhi chalega)';
-      if ('mediaSession' in navigator) {
-        navigator.mediaSession.metadata = new MediaMetadata({ title: song.title, artist: song.artist, artwork: [{ src: song.image, sizes: '300x300' }] });
-        navigator.mediaSession.setActionHandler('play', () => audioEl.play());
-        navigator.mediaSession.setActionHandler('pause', () => audioEl.pause());
-        navigator.mediaSession.setActionHandler('nexttrack', playNext);
-        navigator.mediaSession.setActionHandler('previoustrack', playPrev);
-      }
+      status.textContent = 'Now playing';
     }
+
     function stopAudio() {
       audioEl.pause(); audioEl.removeAttribute('src'); audioEl.style.display = 'none';
       document.querySelector('.yt-wrap').style.display = '';
     }
     audioEl.addEventListener('ended', playNext);
-    audioEl.addEventListener('error', () => { if (audioEl.getAttribute('src')) { status.textContent = 'Ye track nahi chala, next chal raha hai...'; setTimeout(playNext, 800); } });
 
-    // ====== Playback ======
     async function playSong(index) {
       const song = currentPlaylist[index]; if (!song) return;
       currentIndex = index;
@@ -323,7 +317,7 @@
         retryList = await findVideoIds(song);
         tryNextCandidate();
       } catch (e) {
-        status.textContent = hasKey() ? 'YouTube search fail hua (quota check karo).' : 'Pehle code mein YouTube API key daalo.';
+        status.textContent = hasKey() ? 'YouTube search fail hua.' : 'Pehle code mein YouTube API key daalo.';
         console.error(e);
       }
     }
@@ -335,15 +329,26 @@
         status.textContent = 'Ye song embed nahi ho sakta. Next chal raha hai...';
         setTimeout(playNext, 1200); return;
       }
+      currentVideoId = id;
+      openYtLink.href = `https://www.youtube.com/watch?v=${id}`;
+      openYtLink.style.display = 'inline-block';
       status.textContent = 'Now playing';
       ytPlayer.loadVideoById(id);
+    }
+
+    function closePlayer() {
+      try { if (ytReady) ytPlayer.stopVideo(); } catch (e) {}
+      stopAudio(); retryList = []; pendingPlay = null; currentIndex = -1;
+      playerBar.style.display = 'none';
+      renderTracks();
+      status.textContent = 'Koi bhi song chuno:';
     }
 
     function playNext() { if (currentPlaylist.length) playSong((currentIndex + 1) % currentPlaylist.length); }
     function playPrev() { if (currentPlaylist.length) playSong((currentIndex - 1 + currentPlaylist.length) % currentPlaylist.length); }
 
     if (NEW_CHANNEL_IDS.length || NEW_CHANNEL_HANDLES.length) $('newTag').style.display = '';
-    hasKey() ? loadTrending() : (status.textContent = 'Code mein YouTube API key daalo, phir trending songs apne aap aayenge.');
+    hasKey() ? loadTrending() : (status.textContent = 'Code mein YouTube API key daalo.');
   </script>
 </body>
 </html>
